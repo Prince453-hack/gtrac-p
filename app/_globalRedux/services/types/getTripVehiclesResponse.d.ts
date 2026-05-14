@@ -1,0 +1,65 @@
+interface getTripVehiclesResponse {
+	message: string;
+	success: boolean;
+	list: PlannedTrips[];
+}
+
+interface PlannedTrips {
+	sys_service_id: number;
+	lorry_no: string;
+	lorry_type: string;
+	lat: number;
+	lng: number;
+	addr: string;
+	trip_id: number;
+	estimateHour: number | null;
+	estimateTime: string;
+	travelledHours: number;
+	party_name: string;
+	challan_no: string;
+	departure_date: string;
+	source_reach_time: string;
+	station_from_location: string;
+	station_to_location: string;
+	STA: string;
+	ETA: string;
+	totaltripkmbygoogle: number;
+	trip_complted_datebysystem: string;
+	delay: number | null;
+	driver_name: string;
+	destination_party_name: string;
+	cargo_weight: string;
+	driver_number: string;
+	trip_status: string;
+	trip_status_batch: string;
+	kmTravelled: number;
+	KMfromDestination: number;
+	RemainingKM: number;
+	SourceOut: string;
+	vaiOne: string;
+	vaiOneHalting: string;
+	vaiOneInTime: string;
+	vaiOneOutTime: string;
+	vaiOneactHalting: number | null;
+	vaiTwo: string;
+	vaiTwoHalting: string;
+	vaiTwoInTime: string;
+	vaiTwoOutTime: string;
+	vaiTwoactHalting: number | null;
+	vaiThree: string;
+	vaiThreeHalting: string;
+	vaiThreeInTime: string;
+	vaiThreeOutTime: string;
+	vaiThreeactHalting: number | null;
+	vaiFour: string;
+	vaifourHalting: string;
+	vaiFourInTime: string;
+	vaiFourOutTime: string;
+	vaifoureactHalting: number | null;
+	destinationIn: string;
+	extraInfo: any | null;
+	from_temp: string;
+	To_temp: string;
+	createdBy: string;
+	createdAt: string;
+}

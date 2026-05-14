@@ -1,0 +1,35 @@
+html {
+	font-family: sans-serif;
+}
+
+.table-container {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.table {
+	table-layout: fixed;
+}
+
+.table th,
+.table td {
+	border: 1px solid lightgray;
+	border-radius: 10px;
+	overflow: hidden;
+}
+
+tfoot {
+	color: gray;
+}
+
+tfoot th {
+	font-weight: normal;
+}
+/* 
+tr {
+	border-bottom: 1px solid lightgray;
+} */
+
+button:disabled {
+	opacity: 0.5;
+}
