@@ -1,12 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir, readdir, rm } from "fs/promises";
+import { readFile, readdir, rm, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+
+const isVercel = Boolean(process.env.VERCEL);
+const uploadRoot = process.env.ACCIDENTAL_IMAGE_UPLOAD_DIR
+  ? process.env.ACCIDENTAL_IMAGE_UPLOAD_DIR
+  : isVercel
+    ? join("/tmp", "gtrac-uploads")
+    : join(process.cwd(), "public", "uploads");
+
+const getVehicleDir = (vehicleId: string) =>
+  join(uploadRoot, "vehicles", vehicleId);
+
+const getTimestampDir = (vehicleId: string, timestamp: string) =>
+  join(getVehicleDir(vehicleId), timestamp);
+
+const getImageDownloadUrl = (
+  vehicleId: string,
+  timestamp: string,
+  fileName: string,
+) =>
+  `/api/upload/accidental-image?vehicleId=${encodeURIComponent(vehicleId)}&timestamp=${encodeURIComponent(timestamp)}&fileName=${encodeURIComponent(fileName)}&download=1`;
+
+const getMimeType = (fileName: string) => {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "bmp":
+      return "image/bmp";
+    case "svg":
+      return "image/svg+xml";
+    case "avif":
+      return "image/avif";
+    default:
+      return "application/octet-stream";
+  }
+};
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const vehicleId = searchParams.get("vehicleId");
+    const timestamp = searchParams.get("timestamp");
+    const fileName = searchParams.get("fileName");
+    const download = searchParams.get("download") === "1";
 
     if (!vehicleId) {
       return NextResponse.json(
@@ -16,7 +63,38 @@ export async function GET(request: NextRequest) {
     }
 
     // Look for the latest image for this vehicle
-    const vehicleDir = join(process.cwd(), "public", "uploads", "vehicles", vehicleId);
+    const vehicleDir = getVehicleDir(vehicleId);
+
+    if (download) {
+      if (!timestamp || !fileName) {
+        return NextResponse.json(
+          { error: "timestamp and fileName parameters are required" },
+          { status: 400 }
+        );
+      }
+
+      const filePath = join(getTimestampDir(vehicleId, timestamp), fileName);
+
+      if (!existsSync(filePath)) {
+        return NextResponse.json(
+          { error: "Image not found" },
+          { status: 404 }
+        );
+      }
+
+      const fileBuffer = await readFile(filePath);
+
+      // convert Node Buffer to Uint8Array to satisfy NextResponse BodyInit typing
+      const uint8 = new Uint8Array(fileBuffer);
+
+      return new NextResponse(uint8, {
+        status: 200,
+        headers: {
+          "Content-Type": getMimeType(fileName),
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    }
 
     if (!existsSync(vehicleDir)) {
       return NextResponse.json(
@@ -52,7 +130,7 @@ export async function GET(request: NextRequest) {
       }
 
       const latestImageFile = imageFiles[0];
-      const imageUrl = `/uploads/vehicles/${vehicleId}/${latestTimestamp}/${latestImageFile}`;
+      const imageUrl = getImageDownloadUrl(vehicleId, latestTimestamp, latestImageFile);
 
       return NextResponse.json(
         { imageUrl },
@@ -98,14 +176,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create folder structure: /uploads/vehicles/{vehicleId}/{timestamp}/
-    const uploadDir = join(
-      process.cwd(),
-      "public",
-      "uploads",
-      "vehicles",
-      vehicleId,
-      timestamp
-    );
+    const uploadDir = getTimestampDir(vehicleId, timestamp);
 
     // Create directories if they don't exist
     if (!existsSync(uploadDir)) {
@@ -123,7 +194,7 @@ export async function POST(request: NextRequest) {
     await writeFile(filePath, buffer);
 
     // Return the public URL path
-    const publicPath = `/uploads/vehicles/${vehicleId}/${timestamp}/${fileName}`;
+    const publicPath = getImageDownloadUrl(vehicleId, timestamp, fileName);
 
     return NextResponse.json(
       {
@@ -155,7 +226,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const vehicleDir = join(process.cwd(), "public", "uploads", "vehicles", vehicleId);
+    const vehicleDir = getVehicleDir(vehicleId);
 
     if (!existsSync(vehicleDir)) {
       return NextResponse.json(
