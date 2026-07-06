@@ -387,24 +387,20 @@ const AlertNotifications = ({
       },
     );
 
+  const activeToken =
+    Number(userId) === 833406 || Number(userId) === 833407
+      ? 59961
+      : Number(auth.groupId) === 5267 || Number(userId) === 5275
+        ? 6364
+        : Number(auth.groupId);
+
   const { data: alertsNormalRes, refetch: refetchNormalAlerts } =
     useGetNormalAlertsQuery(
       {
-        token:
-          Number(userId) === 833406 || Number(userId) === 833407
-            ? 59961
-            : Number(auth.groupId) === 5267 || Number(userId) === 5275
-              ? 6364
-              : Number(auth.groupId),
+        token: activeToken,
       },
       {
-        pollingInterval: 120000,
-        skipPollingIfUnfocused: true,
-        skip:
-          !auth.groupId ||
-          isAlertsByUserDataUninitialized ||
-          isGetAlertByUserDataLoading ||
-          alertsByUserData?.length === 0,
+        skip: true,
       },
     );
 
@@ -415,9 +411,7 @@ const AlertNotifications = ({
         token: Number(auth.groupId),
       },
       {
-        pollingInterval: 30000, // 30 seconds
-        skipPollingIfUnfocused: true,
-        skip: Number(userId) !== 6258 || !auth.groupId,
+        skip: true,
       },
     );
 
@@ -433,6 +427,65 @@ const AlertNotifications = ({
         skip: Number(userId) !== 6258 || !auth.groupId,
       },
     );
+
+  const [longPollNormalAlerts, setLongPollNormalAlerts] = useState<
+    GetAlertsPopupsResponse[]
+  >([]);
+
+  useEffect(() => {
+    setLongPollNormalAlerts([]);
+    if (!activeToken) return;
+
+    let isActive = true;
+    let timeoutId: NodeJS.Timeout;
+    let consecutiveFalseCount = 0;
+
+    const poll = async () => {
+      if (!isActive) return;
+      if (consecutiveFalseCount >= 10) return;
+
+      let nextPollDelay = 1000;
+      try {
+        const res = await fetch(
+          `https://yatayaat.in/reactapi/alerts_popups.php?token=${activeToken}`
+        );
+        const text = await res.text();
+        const trimmed = text.trim();
+
+        if (!isActive) return;
+
+        if (trimmed === "false") {
+          consecutiveFalseCount++;
+        } else {
+          consecutiveFalseCount = 0;
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setLongPollNormalAlerts(parsed);
+              nextPollDelay = 30000;
+            } else {
+              setLongPollNormalAlerts([]);
+            }
+          } catch (e) {
+            setLongPollNormalAlerts([]);
+          }
+        }
+      } catch (err) {
+        // Fail silently
+      } finally {
+        if (isActive && consecutiveFalseCount < 10) {
+          timeoutId = setTimeout(poll, nextPollDelay);
+        }
+      }
+    };
+
+    poll();
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [activeToken]);
 
   const [allVideoAlertsLoaded, setAllVideoAlertsLoaded] = useState(false);
   const [videoAlertsState, setVideoAlertsState] = useState<VideoAlarmsRecord[]>(
@@ -625,6 +678,34 @@ const AlertNotifications = ({
   const openNotificationFn = (
     isOpenNotificationIndexStateChanged?: boolean,
   ) => {
+    const trigger = (params: {
+      description: string;
+      vehicleNumber: string;
+      title?: string;
+      type:
+        | "Panic"
+        | "Elock"
+        | "Temperature"
+        | "Fuel"
+        | "Idle"
+        | "Normal"
+        | "Geofence Alert";
+      alertId: string;
+      vehicleId?: string;
+      dateTime?: string;
+      alertType?: string;
+      key: string;
+      dataLength: number;
+    }) => {
+      openNotification({
+        ...params,
+        api,
+        setOpenNotificationIndex,
+        openNotificationIndex,
+        setIsAlertPopupActive,
+      });
+    };
+
     let tempTotalAlerts;
     if (
       Number(userId) === 833193 ||
@@ -648,9 +729,9 @@ const AlertNotifications = ({
           ? filterAlertsForUser833193(alertsFuelRes, "Fuel")
           : [];
       const filteredNormalAlerts =
-        alertsNormalRes && !alertsNormalRes[0]?.status
+        longPollNormalAlerts && !longPollNormalAlerts[0]?.status
           ? checkIfIsWithinThirtyMinutesFor833193(
-              checkIfIsWhithinFifteenMinutesForGatewayrail(alertsNormalRes),
+              checkIfIsWhithinFifteenMinutesForGatewayrail(longPollNormalAlerts),
             )
           : [];
 
@@ -684,8 +765,8 @@ const AlertNotifications = ({
         (alertsPanicRes && !alertsPanicRes[0]?.status
           ? alertsPanicRes.length
           : 0) +
-        (alertsNormalRes && !alertsNormalRes[0]?.status
-          ? checkIfIsWhithinFifteenMinutesForGatewayrail(alertsNormalRes).length
+        (longPollNormalAlerts && !longPollNormalAlerts[0]?.status
+          ? checkIfIsWhithinFifteenMinutesForGatewayrail(longPollNormalAlerts).length
           : 0) +
         (alertsFuelRes && !alertsFuelRes[0]?.status ? alertsFuelRes.length : 0);
     }
@@ -708,7 +789,7 @@ const AlertNotifications = ({
           ) {
             const normalData = data.normalAlerts[openNotificationIndex.Normal];
             if (normalData.alert_type === "Geofence Alert") {
-              openNotification({
+              trigger({
                 description: normalData.msg,
                 vehicleNumber: normalData.vehicleno,
                 title: "Geofence Alert",
@@ -716,16 +797,11 @@ const AlertNotifications = ({
                 alertId: normalData.alert_id,
                 vehicleId: normalData.sys_service_id,
                 dateTime: normalData.datetime,
-                api: api,
-                setOpenNotificationIndex: setOpenNotificationIndex,
-                openNotificationIndex: openNotificationIndex,
-                setIsAlertPopupActive: setIsAlertPopupActive,
                 key: normalData.alert_id + openNotificationIndex.Normal,
                 dataLength: data.normalAlerts.length,
               });
             } else {
-              // Show popup for other normal alert types too
-              openNotification({
+              trigger({
                 description: normalData.msg,
                 vehicleNumber: normalData.vehicleno,
                 title: normalData.alert_type || "Alert",
@@ -734,10 +810,6 @@ const AlertNotifications = ({
                 vehicleId: normalData.sys_service_id,
                 dateTime: normalData.datetime,
                 alertType: normalData.alert_type,
-                api: api,
-                setOpenNotificationIndex: setOpenNotificationIndex,
-                openNotificationIndex: openNotificationIndex,
-                setIsAlertPopupActive: setIsAlertPopupActive,
                 key: normalData.alert_id + openNotificationIndex.Normal,
                 dataLength: data.normalAlerts.length,
               });
@@ -753,7 +825,7 @@ const AlertNotifications = ({
               normalData.alert_type === "idle" ||
               normalData.alert_type === "Idle"
             ) {
-              openNotification({
+              trigger({
                 description: normalData.msg,
                 vehicleNumber: normalData.vehicleno,
                 title: "Idle",
@@ -761,15 +833,11 @@ const AlertNotifications = ({
                 alertId: normalData.alert_id,
                 vehicleId: normalData.sys_service_id,
                 dateTime: normalData.datetime,
-                api: api,
-                setOpenNotificationIndex: setOpenNotificationIndex,
-                openNotificationIndex: openNotificationIndex,
-                setIsAlertPopupActive: setIsAlertPopupActive,
                 key: normalData.alert_id + openNotificationIndex.Idle,
                 dataLength: data.normalAlerts.length,
               });
             } else if (normalData.alert_type === "POI Alert") {
-              openNotification({
+              trigger({
                 description: normalData.msg,
                 vehicleNumber: normalData.vehicleno,
                 title: "POI Alert",
@@ -777,10 +845,6 @@ const AlertNotifications = ({
                 alertId: normalData.alert_id,
                 vehicleId: normalData.sys_service_id,
                 dateTime: normalData.datetime,
-                api: api,
-                setOpenNotificationIndex: setOpenNotificationIndex,
-                openNotificationIndex: openNotificationIndex,
-                setIsAlertPopupActive: setIsAlertPopupActive,
                 key: normalData.alert_id + openNotificationIndex.Idle,
                 dataLength: data.normalAlerts.length,
               });
@@ -792,7 +856,7 @@ const AlertNotifications = ({
             openNotificationIndex.Elock !== -1
           ) {
             const elockData = data.elockAlerts[openNotificationIndex.Elock];
-            openNotification({
+            trigger({
               description: elockData.description,
               vehicleNumber: elockData.vehicle_no,
               title: elockData.title,
@@ -800,10 +864,6 @@ const AlertNotifications = ({
               alertId: elockData.id,
               vehicleId: elockData.veh_id,
               dateTime: elockData.log_time,
-              api: api,
-              setOpenNotificationIndex: setOpenNotificationIndex,
-              openNotificationIndex: openNotificationIndex,
-              setIsAlertPopupActive: setIsAlertPopupActive,
               key: elockData.id + openNotificationIndex.Elock,
               dataLength: data.elockAlerts.length,
             });
@@ -815,15 +875,11 @@ const AlertNotifications = ({
           ) {
             const temperatureData =
               data.temperatureAlerts[openNotificationIndex.Temperature];
-            openNotification({
+            trigger({
               description: temperatureData.msg,
               vehicleNumber: temperatureData.idle_vehicle,
               type: "Temperature",
               alertId: temperatureData.id,
-              api: api,
-              setOpenNotificationIndex: setOpenNotificationIndex,
-              openNotificationIndex: openNotificationIndex,
-              setIsAlertPopupActive: setIsAlertPopupActive,
               key: temperatureData.id + openNotificationIndex.Temperature,
               dataLength: data.temperatureAlerts.length,
             });
@@ -834,32 +890,25 @@ const AlertNotifications = ({
             openNotificationIndex.Panic !== -1
           ) {
             const panicData = data.panicAlerts[openNotificationIndex.Panic];
-            openNotification({
+            trigger({
               description: panicData.msg,
               vehicleNumber: panicData.idle_vehicle,
               type: "Panic",
               alertId: panicData.id,
               alertType: "Panic",
-              api: api,
-              setOpenNotificationIndex: setOpenNotificationIndex,
-              openNotificationIndex: openNotificationIndex,
-              setIsAlertPopupActive: setIsAlertPopupActive,
               key: panicData.id + openNotificationIndex.Panic,
               dataLength: data.panicAlerts.length,
             });
           }
+
           if (data.fuelAlerts.length > 0 && openNotificationIndex.Fuel !== -1) {
             const fuelData = data.fuelAlerts[openNotificationIndex.Fuel];
-            openNotification({
+            trigger({
               description: fuelData.msg,
               vehicleNumber: fuelData.idle_vehicle,
               type: "Fuel",
               alertId: fuelData.id,
               alertType: "Fuel",
-              api: api,
-              setOpenNotificationIndex: setOpenNotificationIndex,
-              openNotificationIndex: openNotificationIndex,
-              setIsAlertPopupActive: setIsAlertPopupActive,
               key: fuelData.id + openNotificationIndex.Fuel,
               dataLength: data.fuelAlerts.length,
             });
@@ -935,10 +984,10 @@ const AlertNotifications = ({
       alertsTempRes ||
       alertsNormalRes ||
       alertsUser6258Res ||
+      longPollNormalAlerts ||
       (videoAlertsState && allVideoAlertsLoaded)
     ) {
-      const currentNormalAlerts =
-        Number(userId) === 6258 ? alertsUser6258Res : alertsNormalRes;
+      const currentNormalAlerts = longPollNormalAlerts;
 
       // For users 833193, 833406, and 833407, apply 30-minute filter to ALL alert types
       if (
@@ -1020,6 +1069,7 @@ const AlertNotifications = ({
     alertsPanicRes,
     isElockLoading,
     videoAlertsState,
+    longPollNormalAlerts,
   ]);
 
   useEffect(() => {

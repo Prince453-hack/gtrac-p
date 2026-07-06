@@ -1,6 +1,6 @@
 'use client';
 
-import { Dispatch, SetStateAction, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 import { Select } from 'antd';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/app/_globalRedux/store';
@@ -25,8 +25,11 @@ export const CustomRangePickerReuse = ({
 	const [selectOpen, setSelectOpen] = useState(false);
 
 	const { customRangeSelected } = useSelector((state: RootState) => state.customRange);
+	const { userId } = useSelector((state: RootState) => state.auth);
 
 	const isTodaySelected = useRef(false);
+
+	const limitOptions = Number(userId) === 833908 || Number(userId) === 833868;
 
 	const options = [
 		{
@@ -45,18 +48,22 @@ export const CustomRangePickerReuse = ({
 			label: 'Last 7 Days',
 			value: 'Last 7 Days',
 		},
-		{
-			label: 'This Month',
-			value: 'This Month',
-		},
-		{
-			label: 'Last Month',
-			value: 'Last Month',
-		},
-		{
-			label: 'Custom Date Range',
-			value: 'Custom Date Range',
-		},
+		...(!limitOptions
+			? [
+					{
+						label: 'This Month',
+						value: 'This Month',
+					},
+					{
+						label: 'Last Month',
+						value: 'Last Month',
+					},
+					{
+						label: 'Custom Date Range',
+						value: 'Custom Date Range',
+					},
+			  ]
+			: []),
 	];
 
 	const dispatch = useAppDispatch();
@@ -104,6 +111,13 @@ export const CustomRangePickerReuse = ({
 		}
 		if (localDateRange.startDate && localDateRange.endDate) setCustomDateRange([localDateRange.startDate, localDateRange.endDate]);
 	};
+
+	useEffect(() => {
+		if (limitOptions && ['This Month', 'Last Month', 'Custom Date Range'].includes(customRangeSelected)) {
+			dispatch(setSelectedVehicleCustomRangeSelected('Today'));
+			getVehicleDetailsByDate('Today', customDateRange);
+		}
+	}, [customRangeSelected, limitOptions, dispatch]);
 
 	const getDataForNewRange = (e: Date[]) => {
 		getVehicleDetailsByDate('Custom Date Range', e);
@@ -158,7 +172,7 @@ export const CustomRangePickerReuse = ({
 						</div>
 					) : (
 						<div className='flex justify-between px-2'>
-							<p>{moment().startOf('day').format('Do MMM, YYYY HH:mm')}</p> - <p>{moment().format('Do MMM, YYY HH:mm')}</p>
+							<p>{moment().startOf('day').format('Do MMM, YYYY HH:mm')}</p> - <p>{moment().format('Do MMM, YYYY HH:mm')}</p>
 						</div>
 					)}
 				</div>

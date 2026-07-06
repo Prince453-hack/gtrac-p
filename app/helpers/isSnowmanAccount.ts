@@ -1,7 +1,7 @@
 export const isSnowmanAccount = ({ userId }: { userId: number }) => {
   return (
     userId !== 87415 &&
-    (userId === 6347 ||
+    (userId === 63457 ||
       userId == 78336 ||
       userId === 78335 ||
       userId === 80467 ||

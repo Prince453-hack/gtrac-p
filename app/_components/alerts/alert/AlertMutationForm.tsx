@@ -75,8 +75,8 @@ export const AlertMutationForm = ({
 	const [selectedVehicle, setSelectedVehicle] = useState('');
 	const [loading, setLoading] = useState(false);
 
-	const vehicleOptions: { label: string; value: number }[] = markers.map((marker: Markers) => ({ label: marker.vehReg, value: marker.vId }));
-	vehicleOptions.unshift({ label: '', value: 0 });
+	const vehicleOptions: { label: string; value: any }[] = markers.map((marker: Markers) => ({ label: marker.vehReg, value: marker.vId }));
+	vehicleOptions.unshift({ label: 'All', value: 'All' });
 
 	const [createAlertTrigger] = useLazyCreateAlertQuery();
 	const [editAlertTrigger] = useLazyEditAlertQuery();
@@ -120,14 +120,22 @@ export const AlertMutationForm = ({
 		if (selectedAlertType !== 'Service' && selectedAlertType !== 'Document') {
 			if (modalViewToggle === 'EDIT') {
 				editAlertTrigger(baseData)
-					.then((res) =>
-						createAlertClientTrigger({
+					.then((res) => {
+						if (res?.data && res.data[0]) {
+							return createAlertClientTrigger({
+								...baseData,
+								alert_user_id: res.data[0]['user_id'],
+								alert_group_id: res.data[0]['group_id'],
+								alert_sys_username: res.data[0]['alert_sys_username'],
+							});
+						}
+						return createAlertClientTrigger({
 							...baseData,
-							alert_user_id: res.data[0]['user_id'],
-							alert_group_id: res.data[0]['group_id'],
-							alert_sys_username: res.data[0]['alert_sys_username'],
-						})
-					)
+							alert_user_id: userId,
+							alert_group_id: groupId,
+							alert_sys_username: userName,
+						});
+					})
 					.then(() => {
 						getAlertManagementTrigger({
 							userId: userId,
@@ -138,14 +146,22 @@ export const AlertMutationForm = ({
 					});
 			} else {
 				createAlertTrigger(baseData)
-					.then((res) =>
-						createAlertClientTrigger({
+					.then((res) => {
+						if (res?.data && res.data[0]) {
+							return createAlertClientTrigger({
+								...baseData,
+								alert_user_id: res.data[0]['user_id'],
+								alert_group_id: res.data[0]['group_id'],
+								alert_sys_username: res.data[0]['alert_sys_username'],
+							});
+						}
+						return createAlertClientTrigger({
 							...baseData,
-							alert_user_id: res.data[0]['user_id'],
-							alert_group_id: res.data[0]['group_id'],
-							alert_sys_username: res.data[0]['alert_sys_username'],
-						})
-					)
+							alert_user_id: userId,
+							alert_group_id: groupId,
+							alert_sys_username: userName,
+						});
+					})
 					.then(() => {
 						getAlertManagementTrigger({
 							userId: userId,
@@ -286,9 +302,9 @@ export const AlertMutationForm = ({
 						}
 					}}
 					onSelect={(e: any) => {
-						if (e === 0 && selectedAlertType !== 'Service' && selectedAlertType !== 'Document') {
+						if (e === 'All' && selectedAlertType !== 'Service' && selectedAlertType !== 'Document') {
 							setSelectedVehicle('All');
-						} else if (e === 0 && (selectedAlertType === 'Service' || selectedAlertType === 'Document')) {
+						} else if (e === 'All' && (selectedAlertType === 'Service' || selectedAlertType === 'Document')) {
 							setSelectedVehicle('');
 						} else if (selectedAlertType !== 'Service' && selectedAlertType !== 'Document') {
 							let tempCurrentSelected = `${selectedVehicle}${e}##${vehicleOptions.find((vehicle) => vehicle.value === e)?.label}, `;

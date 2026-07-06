@@ -9,8 +9,9 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/app/_globalRedux/store";
 import { VehicleData } from "@/app/_globalRedux/services/types/getListVehiclesmobTypes";
 import { Button, Card, Modal, Skeleton, Spin, Tooltip } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import moment from "moment";
+import { getSingleVehicleStatus } from "@/app/helpers/api/showVehicleStatus";
 import lessThanGreaterThanFilter from "@/app/helpers/lessThanGreaterThanFilter";
 import { ColumnDef, Row } from "@tanstack/react-table";
 import { operatorFilterFn } from "@/app/helpers/customTableFilterFns";
@@ -19,12 +20,136 @@ export interface VehicleDataWithAnkurTravelsData extends VehicleData {
   ankurCarrierData: AnukurCarrierData | undefined;
 }
 
+const getPreferredInfo = (original: any) => {
+  if (!original) return null;
+  const gpsInfo = original.GPSInfo;
+  const elockInfo = original.ELOCKInfo;
+
+  if (!gpsInfo && !elockInfo) return null;
+  if (!gpsInfo) return elockInfo;
+  if (!elockInfo) return gpsInfo;
+
+  const hasA = (reg?: string) => {
+    if (!reg) return false;
+    const trimmed = reg.trim();
+    return trimmed.endsWith(" A") || trimmed.endsWith("A");
+  };
+
+  const isGpsA = hasA(gpsInfo.vehReg);
+  const isElockA = hasA(elockInfo.vehReg);
+
+  let infoA = null;
+  let infoNonA = null;
+
+  if (isGpsA && !isElockA) {
+    infoA = gpsInfo;
+    infoNonA = elockInfo;
+  } else if (!isGpsA && isElockA) {
+    infoA = elockInfo;
+    infoNonA = gpsInfo;
+  }
+
+  if (!infoNonA || !infoA) {
+    const gpsTime = gpsInfo.gpstime ? new Date(gpsInfo.gpstime).getTime() : 0;
+    const elockTime = elockInfo.gpstime ? new Date(elockInfo.gpstime).getTime() : 0;
+    return gpsTime >= elockTime ? gpsInfo : elockInfo;
+  }
+
+  const nonAWorking = infoNonA.mode !== "NOT WORKING";
+  const aWorking = infoA.mode !== "NOT WORKING";
+
+  if (nonAWorking) {
+    return infoNonA;
+  } else if (aWorking) {
+    return infoA;
+  } else {
+    return infoNonA;
+  }
+};
+
+const getRealtimeStatusLabel = (vehicleState?: number) => {
+  switch (vehicleState) {
+    case 0:
+      return "Offline";
+    case 1:
+      return "Driving";
+    case 2:
+      return "Parking";
+    case 3:
+      return "Never online";
+    case 4:
+      return "Expired";
+    case 5:
+      return "Idling";
+    default:
+      return "Unknown";
+  }
+};
+
+const DashcamStatusCell = ({ model }: { model: string | null }) => {
+  const [status, setStatus] = useState<{ vehicleState: number; formatTime?: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const imei = useMemo(() => {
+    return model?.replace("##BSJ", "") || "";
+  }, [model]);
+
+  useEffect(() => {
+    if (!imei) {
+      setStatus(null);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    getSingleVehicleStatus(imei)
+      .then((res) => {
+        if (active) {
+          if (res) {
+            setStatus({
+              vehicleState: res.vehicleState,
+              formatTime: res.formatTime,
+            });
+          } else {
+            setStatus(null);
+          }
+        }
+      })
+      .catch(() => {
+        if (active) setStatus(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [imei]);
+
+  if (!imei) return <p>-</p>;
+
+  return (
+    <p>
+      {status
+        ? `${getRealtimeStatusLabel(status.vehicleState)}${status.formatTime
+          ? ` (${status.formatTime})`
+          : ""
+        }`
+        : loading
+          ? "Loading status..."
+          : "Status unavailable"}
+    </p>
+  );
+};
+
 export const View = () => {
   const {
     groupId,
     userId,
     accessLabel,
     parentUser: pUserId,
+    isVideoTelematics,
   } = useSelector((state: RootState) => state.auth);
   const [vehicleStatus, setVehicleStatus] = useState("");
   const [filteredData, setFilteredData] = useState<
@@ -96,13 +221,6 @@ export const View = () => {
       width: "200px",
       filterValue: "",
       ref: lastfuelfilledRef,
-    },
-    {
-      title: "Last Fuel Time",
-      dataIndex: ["gpsDtl", "lastfilledTime"],
-      width: "200px",
-      filterValue: "",
-      ref: lastfilledTimeRef,
     },
     {
       title: "Yesterday KM",
@@ -535,56 +653,41 @@ export const View = () => {
         },
         ...(Number(userId) !== 833188
           ? [
-              {
-                accessorKey: "gpsDtl.fuel",
-                id: "fuel",
-                cell: ({ row }: { row: any }) => {
-                  const fuel = row.original.gpsDtl.fuel;
-                  return <>{fuel != null ? `${fuel.toFixed(2)} Litre` : "-"}</>;
-                },
-                header: "Current Fuel",
-                footer: (props: any) => props.column.id,
-                filterFn: (row: any, id: any, value: any) =>
-                  operatorFilterFn(row, id, value),
-                meta: { width: "auto" },
+            {
+              accessorKey: "gpsDtl.fuel",
+              id: "fuel",
+              cell: ({ row }: { row: any }) => {
+                const fuel = row.original.gpsDtl.fuel;
+                return <>{fuel != null ? `${fuel.toFixed(2)} Litre` : "-"}</>;
               },
-              {
-                accessorKey: "gpsDtl.lastfuelfilled",
-                id: "lastfuelfilled",
-                cell: ({ row }: { row: any }) => {
-                  const lastfuelfilled = row.original.gpsDtl.lastfuelfilled;
-                  return (
-                    <>
-                      {lastfuelfilled != null &&
-                      row.original.gpsDtl.lastfilledTime != null
-                        ? `${lastfuelfilled.toFixed(2)} Litre`
-                        : "-"}
-                    </>
-                  );
-                },
-                header: "Last Fuel",
-                footer: (props: any) => props.column.id,
-                filterFn: (row: any, id: any, value: any) =>
-                  operatorFilterFn(row, id, value),
-                meta: { width: "auto" },
-              },
-              {
-                accessorKey: "gpsDtl.lastfilledTime",
-                id: "lastfilledTime",
-                cell: ({ row }: { row: any }) => (
+              header: "Current Fuel",
+              footer: (props: any) => props.column.id,
+              filterFn: (row: any, id: any, value: any) =>
+                operatorFilterFn(row, id, value),
+              meta: { width: "auto" },
+            },
+            {
+              accessorKey: "gpsDtl.lastfuelfilled",
+              id: "lastfuelfilled",
+              cell: ({ row }: { row: any }) => {
+                const lastfuelfilled = row.original.gpsDtl.lastfuelfilled;
+                return (
                   <>
-                    {row.original.gpsDtl.lastfilledTime
-                      ? `${row.original.gpsDtl.lastfilledTime}`
+                    {lastfuelfilled != null &&
+                      row.original.gpsDtl.lastfilledTime != null
+                      ? `${lastfuelfilled.toFixed(2)} Litre`
                       : "-"}
                   </>
-                ),
-                header: "Last Fuel Time",
-                footer: (props: any) => props.column.id,
-                filterFn: (row: any, id: any, value: any) =>
-                  operatorFilterFn(row, id, value),
-                meta: { width: "auto" },
+                );
               },
-            ]
+              header: "Last Fuel",
+              footer: (props: any) => props.column.id,
+              filterFn: (row: any, id: any, value: any) =>
+                operatorFilterFn(row, id, value),
+              meta: { width: "auto" },
+            },
+
+          ]
           : []),
         {
           id: "yesterday_km",
@@ -600,36 +703,36 @@ export const View = () => {
         },
         ...(Number(userId) === 87364 || Number(pUserId) === 87634
           ? [
-              {
-                accessorKey: "gpsDtl.latLngDtl.poi",
-                id: "geofence",
-                cell: ({ row }: { row: any }) => (
-                  <>
-                    {row.original.gpsDtl.latLngDtl.poi &&
+            {
+              accessorKey: "gpsDtl.latLngDtl.poi",
+              id: "geofence",
+              cell: ({ row }: { row: any }) => (
+                <>
+                  {row.original.gpsDtl.latLngDtl.poi &&
                     row.original.gpsDtl.latLngDtl.poi?.replaceAll("_", " ") ===
-                      "Inside POI"
-                      ? "Inside Geofence"
-                      : row.original.gpsDtl.latLngDtl.poi?.replaceAll(
-                          "_",
-                          " "
-                        ) === "No Nearest POI"
+                    "Inside POI"
+                    ? "Inside Geofence"
+                    : row.original.gpsDtl.latLngDtl.poi?.replaceAll(
+                      "_",
+                      " "
+                    ) === "No Nearest POI"
                       ? "No Nearest Geofence"
                       : row.original.gpsDtl.latLngDtl.poi?.replaceAll(
-                          "_",
-                          " "
-                        )}{" "}
-                  </>
-                ),
-                header: "Nearby Geofence",
-                footer: (props: any) => props.column.id,
-                filterFn: (
-                  row: Row<VehicleDataWithAnkurTravelsData>,
-                  id: string,
-                  value: any
-                ) => operatorFilterFn(row, id, value),
-                meta: { width: "auto" },
-              },
-            ]
+                        "_",
+                        " "
+                      )}{" "}
+                </>
+              ),
+              header: "Nearby Geofence",
+              footer: (props: any) => props.column.id,
+              filterFn: (
+                row: Row<VehicleDataWithAnkurTravelsData>,
+                id: string,
+                value: any
+              ) => operatorFilterFn(row, id, value),
+              meta: { width: "auto" },
+            },
+          ]
           : []),
         {
           accessorKey: "gpsDtl.HaltingInHRS",
@@ -647,8 +750,8 @@ export const View = () => {
             <>
               {row.original.gpsDtl.hatledSince
                 ? moment(row.original.gpsDtl.hatledSince).format(
-                    "Do MMM, YYYY, HH:mm"
-                  )
+                  "Do MMM, YYYY, HH:mm"
+                )
                 : "-"}
             </>
           ),
@@ -671,19 +774,19 @@ export const View = () => {
   const getVehicleStatusFromOriginal = (
     original: VehicleData | VehicleDataWithAnkurTravelsData
   ) => {
-    const gpsInfoMode = (original as any).GPSInfo?.mode || original.gpsDtl.mode;
-    const elockInfoMode = (original as any).ELOCKInfo?.mode;
+    const gpsInfo = (original as any).GPSInfo;
+    const elockInfo = (original as any).ELOCKInfo;
+
+    const gpsInfoMode = gpsInfo?.mode || original.gpsDtl.mode;
+    const elockInfoMode = elockInfo?.mode;
 
     if (gpsInfoMode === "NOT WORKING" && elockInfoMode === "NOT WORKING") {
       return "NOT WORKING";
     }
 
-    if (gpsInfoMode === "NOT WORKING") {
-      return elockInfoMode || gpsInfoMode || "-";
-    }
-
-    if (elockInfoMode === "NOT WORKING") {
-      return gpsInfoMode || elockInfoMode || "-";
+    const preferredInfo = getPreferredInfo(original);
+    if (preferredInfo && preferredInfo.mode) {
+      return preferredInfo.mode;
     }
 
     return gpsInfoMode || elockInfoMode || "-";
@@ -822,21 +925,9 @@ export const View = () => {
       accessorKey: "gpsDtl.latLngDtl.addr",
       id: "location",
       cell: ({ row }) => {
-        const gpsInfo = (row.original as any).GPSInfo;
-        const elockInfo = (row.original as any).ELOCKInfo;
         const defaultAddr = row.original.gpsDtl.latLngDtl.addr;
-
-        const gpsTime = gpsInfo?.gpstime ? new Date(gpsInfo.gpstime).getTime() : 0;
-        const elockTime = elockInfo?.gpstime ? new Date(elockInfo.gpstime).getTime() : 0;
-
-        let value = defaultAddr;
-        if (gpsTime || elockTime) {
-          if (gpsTime >= elockTime && gpsInfo?.addr) value = gpsInfo.addr;
-          else if (elockTime > gpsTime && elockInfo?.addr) value = elockInfo.addr;
-        } else if (row.original.gpsDtl.controllernum === "CONTROLLER" && elockInfo?.addr) {
-          // fallback to old controller behaviour
-          value = elockInfo.addr;
-        }
+        const preferredInfo = getPreferredInfo(row.original);
+        const value = preferredInfo?.addr || defaultAddr;
 
         return (
           <>
@@ -863,17 +954,12 @@ export const View = () => {
       accessorKey: "gpsDtl.latLngDtl.gpstime",
       id: "gpsTime",
       cell: ({ row }) => {
-        const gpsInfo = (row.original as any).GPSInfo;
         const elockInfo = (row.original as any).ELOCKInfo;
         const defaultGps = row.original.gpsDtl.latLngDtl.gpstime;
 
-        const gpsTime = gpsInfo?.gpstime ? new Date(gpsInfo.gpstime).getTime() : 0;
-        const elockTime = elockInfo?.gpstime ? new Date(elockInfo.gpstime).getTime() : 0;
-
-        let gpsTimeToDisplay = defaultGps;
-        if (gpsTime || elockTime) {
-          gpsTimeToDisplay = gpsTime >= elockTime ? gpsInfo?.gpstime || defaultGps : elockInfo?.gpstime || defaultGps;
-        } else if (accessLabel === 6 && row.original.gpsDtl.controllernum === "CONTROLLER" && elockInfo?.gpstime) {
+        const preferredInfo = getPreferredInfo(row.original);
+        let gpsTimeToDisplay = preferredInfo?.gpstime || defaultGps;
+        if (!preferredInfo && accessLabel === 6 && row.original.gpsDtl.controllernum === "CONTROLLER" && elockInfo?.gpstime) {
           gpsTimeToDisplay = elockInfo.gpstime;
         }
 
@@ -903,205 +989,216 @@ export const View = () => {
       filterFn: (row, id, value) => operatorFilterFn(row, id, value),
       meta: { width: "auto" },
     },
+    ...(isVideoTelematics
+      ? [
+        {
+          id: "dashcam_status",
+          accessorFn: (row: VehicleDataWithAnkurTravelsData) =>
+            row.gpsDtl.model || row.model,
+          cell: ({ row }: { row: any }) => (
+            <DashcamStatusCell model={row.original.gpsDtl.model || row.original.model} />
+          ),
+          header: "Dashcam Status",
+          footer: (props: any) => props.column.id,
+          filterFn: (row: any, id: any, value: any) =>
+            operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+      ]
+      : []),
     ...(Number(userId) === 833188
       ? [
-          {
-            id: "battery_status",
-            accessorFn: (row: VehicleDataWithAnkurTravelsData) =>
-              getBatteryStatusForUser833188(row),
-            cell: ({ row }: { row: any }) => {
-              const batteryStatus = getBatteryStatusForUser833188(row.original);
-              return (
-                <p
-                  className={`${
-                    getVehiclesNotWorking(row) ? "text-red-700 " : ""
+        {
+          id: "battery_status",
+          accessorFn: (row: VehicleDataWithAnkurTravelsData) =>
+            getBatteryStatusForUser833188(row),
+          cell: ({ row }: { row: any }) => {
+            const batteryStatus = getBatteryStatusForUser833188(row.original);
+            return (
+              <p
+                className={`${getVehiclesNotWorking(row) ? "text-red-700 " : ""
                   }`}
-                >
-                  {batteryStatus === "Loading..." ? (
-                    <Skeleton.Button
-                      active
-                      size="small"
-                      style={{ width: 50, height: 16 }}
-                    />
-                  ) : (
-                    batteryStatus || "-"
-                  )}
-                </p>
-              );
-            },
-            header: "Battery Status",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
+              >
+                {batteryStatus === "Loading..." ? (
+                  <Skeleton.Button
+                    active
+                    size="small"
+                    style={{ width: 50, height: 16 }}
+                  />
+                ) : (
+                  batteryStatus || "-"
+                )}
+              </p>
+            );
           },
-          {
-            id: "remaining_km",
-            accessorFn: (row: VehicleDataWithAnkurTravelsData) =>
-              getRemainingKMForUser833188(row),
-            cell: ({ row }: { row: any }) => {
-              const remainingKm = getRemainingKMForUser833188(row.original);
-              return (
-                <p
-                  className={`${
-                    getVehiclesNotWorking(row) ? "text-red-700 " : ""
+          header: "Battery Status",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+        {
+          id: "remaining_km",
+          accessorFn: (row: VehicleDataWithAnkurTravelsData) =>
+            getRemainingKMForUser833188(row),
+          cell: ({ row }: { row: any }) => {
+            const remainingKm = getRemainingKMForUser833188(row.original);
+            return (
+              <p
+                className={`${getVehiclesNotWorking(row) ? "text-red-700 " : ""
                   }`}
-                >
-                  {remainingKm === "Loading..." ? (
-                    <Skeleton.Button
-                      active
-                      size="small"
-                      style={{ width: 40, height: 16 }}
-                    />
-                  ) : remainingKm === "NA" ? (
-                    "NA"
-                  ) : (
-                    `${remainingKm} km`
-                  )}
-                </p>
-              );
-            },
-            header: "Remaining KM",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
+              >
+                {remainingKm === "Loading..." ? (
+                  <Skeleton.Button
+                    active
+                    size="small"
+                    style={{ width: 40, height: 16 }}
+                  />
+                ) : remainingKm === "NA" ? (
+                  "NA"
+                ) : (
+                  `${remainingKm} km`
+                )}
+              </p>
+            );
           },
-        ]
+          header: "Remaining KM",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+      ]
       : []),
-      
+
     ...(accessLabel === 6
       ? [
-          {
-            accessorKey: "gpsDtl.acState",
-            id: "e_lock",
-            cell: ({ row }: { row: any }) => (
-              <>{row.original.gpsDtl.acState === "Off" ? "Lock" : "Unlock"}</>
-            ),
-            header: "ELock",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
-          },
-        ]
+        {
+          accessorKey: "gpsDtl.acState",
+          id: "e_lock",
+          cell: ({ row }: { row: any }) => (
+            <>{row.original.gpsDtl.acState === "Off" ? "Lock" : "Unlock"}</>
+          ),
+          header: "ELock",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+      ]
       : []),
     ...(accessLabel === 6
       ? [
-          {
-            accessorKey: "gpsDtl.jny_distance",
-            id: "controller_number",
-            cell: ({ row }: { row: any }) => (
-              <>
-                {row.original.gpsDtl.jny_distance
-                  ? `${row.original.gpsDtl.jny_distance}`
-                  : "-"}
-              </>
-            ),
-            header: "Controller No.",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
-          },
-        ]
+        {
+          accessorKey: "gpsDtl.jny_distance",
+          id: "controller_number",
+          cell: ({ row }: { row: any }) => (
+            <>
+              {row.original.gpsDtl.jny_distance
+                ? `${row.original.gpsDtl.jny_distance}`
+                : "-"}
+            </>
+          ),
+          header: "Controller No.",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+      ]
       : []),
     ...(userId && Number(userId) === 83823
       ? [
-          {
-            id: "YT",
-            cell: ({ row }: { row: any }) => (
-              <a
-                href={`https://gtrac.in/newtracking/reports/journeyandmap.php?Pickup_time=${moment(
+        {
+          id: "YT",
+          cell: ({ row }: { row: any }) => (
+            <a
+              href={`https://gtrac.in/newtracking/reports/journeyandmap.php?Pickup_time=${moment(
+                new Date()
+              )
+                .subtract(1, "day")
+                .startOf("day")
+                .format("YYYY-MMM-DD HH:MMM:ss")}&end_trip=${moment(
                   new Date()
-                )
-                  .subtract(1, "day")
-                  .startOf("day")
-                  .format("YYYY-MMM-DD HH:MMM:ss")}&end_trip=${moment(
-                  new Date()
-                ).format("YYYY-MMM-DD HH:MMM:ss")}&sys_service_id=${
-                  row.original.sys_service_id
-                }&vehicle=${
-                  row.original.vehReg
+                ).format("YYYY-MMM-DD HH:MMM:ss")}&sys_service_id=${row.original.sys_service_id
+                }&vehicle=${row.original.vehReg
                 }&token=56028&userid=83823&parent_id=1&extra=0`}
-                target="_blank"
-                referrerPolicy="no-referrer"
-              >
-                YT
-              </a>
-            ),
-            header: "YT",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
-          },
-        ]
+              target="_blank"
+              referrerPolicy="no-referrer"
+            >
+              YT
+            </a>
+          ),
+          header: "YT",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+      ]
       : []),
     ...(vehicleStatus === "NON ACTIVE"
       ? [
-          {
-            accessorKey: "gpsDtl.inactiveReason",
-            id: "inactive_reason",
-            cell: ({ row }: { row: any }) => (
-              <p
-                className={`${
-                  getVehiclesNotWorking(row) ? "text-red-700 " : ""
+        {
+          accessorKey: "gpsDtl.inactiveReason",
+          id: "inactive_reason",
+          cell: ({ row }: { row: any }) => (
+            <p
+              className={`${getVehiclesNotWorking(row) ? "text-red-700 " : ""
                 }`}
-              >
-                {row.original.gpsDtl.inactiveReason || "-"}
-              </p>
-            ),
-            header: "Inactive Reason",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
-          },
-          {
-            accessorKey: "gpsDtl.InactiveDatetime",
-            id: "inactive_datetime",
-            cell: ({ row }: { row: any }) => (
-              <p
-                className={`${
-                  getVehiclesNotWorking(row) ? "text-red-700 " : ""
+            >
+              {row.original.gpsDtl.inactiveReason || "-"}
+            </p>
+          ),
+          header: "Inactive Reason",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+        {
+          accessorKey: "gpsDtl.InactiveDatetime",
+          id: "inactive_datetime",
+          cell: ({ row }: { row: any }) => (
+            <p
+              className={`${getVehiclesNotWorking(row) ? "text-red-700 " : ""
                 }`}
-              >
-                {row.original.gpsDtl.InactiveDatetime
-                  ? moment(row.original.gpsDtl.InactiveDatetime).format(
-                      "Do MMM, YYYY, HH:mm"
-                    )
-                  : "-"}
-              </p>
-            ),
-            header: "Inactive Since",
-            footer: (props: any) => props.column.id,
-            filterFn: (
-              row: Row<VehicleDataWithAnkurTravelsData>,
-              id: string,
-              value: any
-            ) => operatorFilterFn(row, id, value),
-            meta: { width: "auto" },
-          },
-        ]
+            >
+              {row.original.gpsDtl.InactiveDatetime
+                ? moment(row.original.gpsDtl.InactiveDatetime).format(
+                  "Do MMM, YYYY, HH:mm"
+                )
+                : "-"}
+            </p>
+          ),
+          header: "Inactive Since",
+          footer: (props: any) => props.column.id,
+          filterFn: (
+            row: Row<VehicleDataWithAnkurTravelsData>,
+            id: string,
+            value: any
+          ) => operatorFilterFn(row, id, value),
+          meta: { width: "auto" },
+        },
+      ]
       : []),
   ];
 
@@ -1207,28 +1304,16 @@ export const View = () => {
                 </div>
               )}
               {(() => {
-                const selGps = selectedVehicle?.GPSInfo as any | undefined;
-                const selElock = selectedVehicle?.ELOCKInfo as any | undefined;
                 const defaultLat = Number(selectedVehicle?.gpsDtl.latLngDtl.lat) || 0;
                 const defaultLng = Number(selectedVehicle?.gpsDtl.latLngDtl.lng) || 0;
-                const gpsTime = selGps?.gpstime ? new Date(selGps.gpstime).getTime() : 0;
-                const elockTime = selElock?.gpstime ? new Date(selElock.gpstime).getTime() : 0;
+
+                const preferredInfo = getPreferredInfo(selectedVehicle);
                 let mapLat = defaultLat;
                 let mapLong = defaultLng;
-                if (gpsTime || elockTime) {
-                  if (gpsTime >= elockTime && selGps?.lat && selGps?.lng) {
-                    mapLat = Number(selGps.lat);
-                    mapLong = Number(selGps.lng);
-                  } else if (elockTime > gpsTime && selElock?.lat && selElock?.lng) {
-                    mapLat = Number(selElock.lat);
-                    mapLong = Number(selElock.lng);
-                  }
-                } else if (
-                  selectedVehicle?.gpsDtl.controllernum === "CONTROLLER" &&
-                  selectedVehicle?.ELOCKInfo?.lat
-                ) {
-                  mapLat = Number(selectedVehicle.ELOCKInfo.lat);
-                  mapLong = Number(selectedVehicle.ELOCKInfo.lng);
+
+                if (preferredInfo?.lat && (preferredInfo?.lng || preferredInfo?.lon)) {
+                  mapLat = Number(preferredInfo.lat);
+                  mapLong = Number(preferredInfo.lng || preferredInfo.lon);
                 }
 
                 return (
@@ -1245,11 +1330,10 @@ export const View = () => {
           </Modal>
           <CustomVehicleStatusReport
             columns={columns}
-            scroll_y={`${
-              Number(userId) === 87364 || Number(pUserId) === 87364
-                ? "h-[calc(100vh-240px)]"
-                : "h-[calc(100vh-200px)]"
-            }`}
+            scroll_y={`${Number(userId) === 87364 || Number(pUserId) === 87364
+              ? "h-[calc(100vh-240px)]"
+              : "h-[calc(100vh-200px)]"
+              }`}
             data={
               filteredData && (filteredData.length < 0 ? null : filteredData)
             }

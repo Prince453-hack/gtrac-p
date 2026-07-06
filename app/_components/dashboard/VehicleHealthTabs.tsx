@@ -21,38 +21,38 @@ const columns = (opts: {
   type: "fuel" | "adblue";
   event: "filled" | "theft";
 }): ColumnsType<any> => [
-  {
-    title: "Time",
-    dataIndex: "time",
-    render: (val: string) => moment(val).format("DD MMM, YYYY HH:mm"),
-  },
-  {
-    title: "Odometer",
-    dataIndex: "odometer",
-    render: (val: string) => Number(val).toLocaleString(),
-  },
+    {
+      title: "Time",
+      dataIndex: "time",
+      render: (val: string) => moment(val).format("DD MMM, YYYY HH:mm"),
+    },
+    {
+      title: "Odometer",
+      dataIndex: "odometer",
+      render: (val: string) => Number(val).toLocaleString(),
+    },
 
-  opts.event === "filled"
-    ? {
+    opts.event === "filled"
+      ? {
         title: opts.type === "fuel" ? "Fuel Filled" : "AdBlue Filled",
         dataIndex: "amountFilled",
         render: (val: number | null) => (val != null ? val.toFixed(2) : "–"),
       }
-    : {
+      : {
         title: opts.type === "fuel" ? "Fuel Stolen" : "AdBlue Stolen",
         dataIndex: "amountStolen",
         render: (val: number | null) => (val != null ? val.toFixed(2) : "–"),
       },
-  {
-    title: "Location",
-    dataIndex: "location",
-    render: (val: string) => (
-      <Tooltip title={val} className="w-full flex items-center justify-center">
-        <PushpinFilled className="cursor-pointer" />
-      </Tooltip>
-    ),
-  },
-];
+    {
+      title: "Location",
+      dataIndex: "location",
+      render: (val: string) => (
+        <Tooltip title={val} className="w-full flex items-center justify-center">
+          <PushpinFilled className="cursor-pointer" />
+        </Tooltip>
+      ),
+    },
+  ];
 
 const CustomProgressbarFuelAndAblue = ({
   type,
@@ -393,7 +393,7 @@ function VehicleHealthTabs() {
                     addressData?.loc.replaceAll("_", " ") ?? "Unknown Location",
                 } as Point;
               }
-            } catch {}
+            } catch { }
             return { ...pt, location: "Unknown Location" } as Point;
           })
         );
@@ -442,7 +442,7 @@ function VehicleHealthTabs() {
                     addressData?.loc.replaceAll("_", " ") ?? "Unknown Location",
                 } as Point;
               }
-            } catch {}
+            } catch { }
             return { ...pt, location: "Unknown Location" } as Point;
           })
         );

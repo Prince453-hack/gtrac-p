@@ -42,7 +42,7 @@ import getGoogleApiKey from "@/app/helpers/getGoogleMapKeys";
 import { ArrowsAltOutlined, HeatMapOutlined } from "@ant-design/icons";
 import { ColumnDef, Row } from "@tanstack/react-table";
 import { Button, Tooltip } from "antd";
-import dayjs, { Dayjs } from "dayjs";
+import dayjs from "dayjs";
 import moment from "moment";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -83,11 +83,11 @@ export const View = () => {
     DownloadReportTs | undefined
   >();
   const [formatedData, setFormatedData] = useState<FormattedData["list"]>([]);
-  const [date, setDate] = useState<Dayjs>(dayjs().subtract(1, "days"));
   const [dateRange, setDateRange] = useState<Date[]>([
-    dayjs().startOf("day").toDate(),
-    dayjs().toDate(),
+    dayjs().subtract(1, "days").startOf("day").toDate(),
+    dayjs().subtract(1, "days").endOf("day").toDate(),
   ]);
+  const [queryDateRange, setQueryDateRange] = useState<Date[]>(dateRange);
   const vehicleItnaryWithPath = useSelector(
     (state: RootState) => state.vehicleItnaryWithPath,
   );
@@ -108,31 +108,14 @@ export const View = () => {
     state: false,
   });
 
-  const [getConsolidateDetail, { isLoading: isConsolidateDetailLoading }] =
-    useLazyGetConsolidateDetailQuery();
   const [
     getConsolidateDateByRange,
-    { isLoading: isConsolidateDateByRangeLoading },
+    { isLoading: isConsolidateDateByRangeLazyLoading },
   ] = useLazyGetConsolidateDateByRangeQuery();
   const [
     getConslidateByDateRangeDataAndVehicleNumber,
-    { isLoading: isGetConslidateByDateRangeDataAndVehicleNumberLoading },
+    { isLoading: isGetConslidateByDateRangeDataAndVehicleNumberLazyLoading },
   ] = useLazyGetConslidateByDateRangeDataAndVehicleNumberQuery();
-
-  const { data, isLoading } = useGetConsolidateDetailQuery(
-    {
-      token: groupId,
-      userId: userId,
-      startDate: moment().subtract(1, "days").format("YYYY-MM-DD"),
-    },
-    {
-      skip:
-        !groupId ||
-        !userId ||
-        Number(userId) === 85380 ||
-        Number(userId) === 83171,
-    },
-  );
 
   const {
     data: conslidateDetailByDateRangeData,
@@ -142,14 +125,13 @@ export const View = () => {
       token: groupId,
       vehId: selectedVehicleOption?.value || 0,
       userId: userId,
-      startDate: moment(dateRange[0]).format("YYYY-MM-DD HH:mm"),
-      endDate: moment(dateRange[1]).format("YYYY-MM-DD HH:mm"),
+      startDate: moment(queryDateRange[0]).format("YYYY-MM-DD HH:mm"),
+      endDate: moment(queryDateRange[1]).format("YYYY-MM-DD HH:mm"),
     },
     {
       skip:
         !groupId ||
         !userId ||
-        Number(userId) !== 85380 ||
         selectedVehicleOption?.value === undefined ||
         selectedVehicleOption?.value === 0,
     },
@@ -157,109 +139,68 @@ export const View = () => {
 
   const {
     data: conslidateByDateRangeDataAndVehicleNumber,
-    isLoading: isConslidateByDateRangeDataAndVehicleNumberLoading,
+    isLoading: isConsolidateDateByRangeLoading,
   } = useGetConsolidateDateByRangeQuery(
     {
       token: groupId,
       userId: userId,
-      startDate: moment(dateRange[0]).format("YYYY-MM-DD HH:mm"),
-      endDate: moment(dateRange[1]).format("YYYY-MM-DD HH:mm"),
+      startDate: moment(queryDateRange[0]).format("YYYY-MM-DD HH:mm"),
+      endDate: moment(queryDateRange[1]).format("YYYY-MM-DD HH:mm"),
     },
-    { skip: !groupId || !userId || Number(userId) !== 85380 },
+    {
+      skip:
+        !groupId ||
+        !userId ||
+        (selectedVehicleOption?.value !== undefined &&
+          selectedVehicleOption?.value !== 0),
+    },
   );
   const [isLocalLoading, setIsLocalLoading] = useState(false);
 
   const filterVehiclesBySelectedDate = (
     vehicles: ConsolidatedReportResponse["list"],
+    rangeToUse: Date[] = queryDateRange
   ) => {
     if (!vehicles || vehicles.length === 0) return [];
 
-    if (Number(userId) === 85380 || Number(userId) === 83171) {
-      const [start, end] = dateRange;
-      if (!start || !end) return vehicles;
+    const [start, end] = rangeToUse;
+    if (!start || !end) return vehicles;
 
-      const startMoment = moment(start);
-      const endMoment = moment(end);
-
-      return vehicles.filter((vehicle) => {
-        if (!vehicle.Start_Time) return false;
-        const startTime = moment(vehicle.Start_Time);
-        return startTime.isBetween(startMoment, endMoment, undefined, "[]");
-      });
-    }
-
-    const selectedStart = moment(date.toDate()).startOf("day");
+    const startMoment = moment(start);
+    const endMoment = moment(end);
 
     return vehicles.filter((vehicle) => {
       if (!vehicle.Start_Time) return false;
       const startTime = moment(vehicle.Start_Time);
-      return startTime.isSameOrAfter(selectedStart);
+      return startTime.isBetween(startMoment, endMoment, undefined, "[]");
     });
   };
 
+  const activeData =
+    selectedVehicleOption?.value && selectedVehicleOption.value !== 0
+      ? conslidateDetailByDateRangeData
+      : conslidateByDateRangeDataAndVehicleNumber;
+
   useEffect(() => {
-    if (Number(userId) === 85380) {
-      if (
-        conslidateDetailByDateRangeData &&
-        conslidateDetailByDateRangeData.list &&
-        Array.isArray(conslidateDetailByDateRangeData.list)
-      ) {
-        setFormatedData(
-          filterVehiclesBySelectedDate(
-            conslidateDetailByDateRangeData.list,
-          ).map((vehicle) => ({
-            ...vehicle,
-            End_Location: vehicle.End_Location?.replaceAll("_", " "),
-            Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
-            Start_Time_formatted: moment(vehicle.Start_Time).format(
-              "DD-MM-YYYY HH:mm:ss",
-            ),
-            End_Time_formatted: moment(vehicle.End_Time).format(
-              "DD-MM-YYYY HH:mm:ss",
-            ),
-          })),
-        );
-      }
-    } else if (Number(userId) === 83171) {
-      if (
-        conslidateByDateRangeDataAndVehicleNumber &&
-        conslidateByDateRangeDataAndVehicleNumber.list &&
-        Array.isArray(conslidateByDateRangeDataAndVehicleNumber.list)
-      ) {
-        setFormatedData(
-          filterVehiclesBySelectedDate(
-            conslidateByDateRangeDataAndVehicleNumber.list,
-          ).map((vehicle) => ({
-            ...vehicle,
-            End_Location: vehicle.End_Location?.replaceAll("_", " "),
-            Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
-            Start_Time_formatted: moment(vehicle.Start_Time).format(
-              "DD-MM-YYYY HH:mm:ss",
-            ),
-            End_Time_formatted: moment(vehicle.End_Time).format(
-              "DD-MM-YYYY HH:mm:ss",
-            ),
-          })),
-        );
-      }
+    if (activeData && activeData.list && Array.isArray(activeData.list)) {
+      setFormatedData(
+        filterVehiclesBySelectedDate(activeData.list).map((vehicle) => ({
+          ...vehicle,
+          End_Location: vehicle.End_Location?.replaceAll("_", " "),
+          Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
+          Start_Time_formatted: moment(vehicle.Start_Time).format(
+            "DD-MM-YYYY HH:mm:ss",
+          ),
+          End_Time_formatted: moment(vehicle.End_Time).format(
+            "DD-MM-YYYY HH:mm:ss",
+          ),
+        })),
+      );
     } else {
-      if (data && data.list && Array.isArray(data.list)) {
-        setFormatedData(
-          filterVehiclesBySelectedDate(data.list).map((vehicle) => ({
-            ...vehicle,
-            End_Location: vehicle.End_Location?.replaceAll("_", " "),
-            Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
-            Start_Time_formatted: moment(vehicle.Start_Time).format(
-              "DD-MM-YYYY HH:mm:ss",
-            ),
-            End_Time_formatted: moment(vehicle.End_Time).format(
-              "DD-MM-YYYY HH:mm:ss",
-            ),
-          })),
-        );
-      }
+      setFormatedData([]);
     }
-  }, [data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeData, queryDateRange]);
 
   const columns = useMemo(() => {
     const cols: ColumnDef<TableRow>[] = [
@@ -282,40 +223,40 @@ export const View = () => {
       },
 
       ...(Number(userId) !== 833193 &&
-      Number(userId) !== 3212 &&
-      Number(userId) !== 833129
+        Number(userId) !== 3212 &&
+        Number(userId) !== 833129
         ? [
-            {
-              accessorKey: "Start_Location",
-              id: "start_location",
-              header: "Start Location",
-              cell: ({ row }: { row: any }) => {
-                return (
-                  <div className="cursor-pointer">
-                    <Tooltip
-                      title={row.original.Start_Location}
-                      mouseEnterDelay={1}
-                    >
-                      {row.original.Start_Location.slice(0, 40)}
-                    </Tooltip>
-                  </div>
-                );
-              },
-              footer: (props: any) => props.column.id,
-              filterFn: (row: any, id: any, value: any) =>
-                operatorFilterFn(row, id, value),
+          {
+            accessorKey: "Start_Location",
+            id: "start_location",
+            header: "Start Location",
+            cell: ({ row }: { row: any }) => {
+              return (
+                <div className="cursor-pointer">
+                  <Tooltip
+                    title={row.original.Start_Location}
+                    mouseEnterDelay={1}
+                  >
+                    {row.original.Start_Location.slice(0, 40)}
+                  </Tooltip>
+                </div>
+              );
             },
-          ]
+            footer: (props: any) => props.column.id,
+            filterFn: (row: any, id: any, value: any) =>
+              operatorFilterFn(row, id, value),
+          },
+        ]
         : [
-            {
-              accessorKey: "timeDiff",
-              id: "time_difference",
-              header: "Time Difference",
-              footer: (props: any) => props.column.id,
-              filterFn: (row: any, id: any, value: any) =>
-                operatorFilterFn(row, id, value),
-            },
-          ]),
+          {
+            accessorKey: "timeDiff",
+            id: "time_difference",
+            header: "Time Difference",
+            footer: (props: any) => props.column.id,
+            filterFn: (row: any, id: any, value: any) =>
+              operatorFilterFn(row, id, value),
+          },
+        ]),
       {
         accessorKey: "End_Time_formatted",
         id: "end_time",
@@ -326,43 +267,45 @@ export const View = () => {
       },
       ...(Number(userId) !== 833193 && Number(userId) !== 3212
         ? [
-            {
-              accessorKey: "End_Location",
-              id: "end_location",
-              header: "End Location",
-              cell: ({ row }: { row: any }) => {
-                return (
-                  <div className="cursor-pointer">
-                    <Tooltip
-                      title={row.original.End_Location}
-                      mouseEnterDelay={1}
-                    >
-                      {row.original.End_Location.slice(0, 40)}
-                    </Tooltip>
-                  </div>
-                );
-              },
-              footer: (props: any) => props.column.id,
-              filterFn: (row: any, id: any, value: any) =>
-                operatorFilterFn(row, id, value),
+          {
+            accessorKey: "End_Location",
+            id: "end_location",
+            header: "End Location",
+            cell: ({ row }: { row: any }) => {
+              return (
+                <div className="cursor-pointer">
+                  <Tooltip
+                    title={row.original.End_Location}
+                    mouseEnterDelay={1}
+                  >
+                    {row.original.End_Location.slice(0, 40)}
+                  </Tooltip>
+                </div>
+              );
             },
-          ]
+            footer: (props: any) => props.column.id,
+            filterFn: (row: any, id: any, value: any) =>
+              operatorFilterFn(row, id, value),
+          },
+        ]
         : []),
-      ...(Number(userId) !== 85380 && Number(userId) !== 3212
+      ...(Number(userId) !== 3212
         ? [
-            {
-              accessorKey: "Total_KM",
-              id: "total_km",
-              header: "Total KM",
-              footer: (props: any) => props.column.id,
-              cell: ({ row }: { row: Row<TableRow> }) => {
-                return <>{row.original.Total_KM.toFixed(2)}</>;
-              },
-              filterFn: (row: Row<TableRow>, id: string, value: string) =>
-                operatorFilterFn(row, id, value),
+          {
+            accessorKey: "Total_KM",
+            id: "total_km",
+            header: "Total KM",
+            footer: (props: any) => props.column.id,
+            cell: ({ row }: { row: Row<TableRow> }) => {
+              return <>{row.original.Total_KM.toFixed(2)}</>;
             },
-          ]
+            filterFn: (row: Row<TableRow>, id: string, value: string) =>
+              operatorFilterFn(row, id, value),
+          },
+        ]
         : []),
+
+
       {
         accessorKey: "Running_Hours",
         id: "running_hrs",
@@ -379,32 +322,32 @@ export const View = () => {
       },
       ...(Number(userId) !== 85380 && Number(userId) !== 3212
         ? [
-            {
-              id: "history_replay",
-              header: "History Replay",
-              cell: ({ row }: { row: Row<TableRow> }) => {
-                return (
-                  <div
-                    className="flex gap-2 items-center justify-center w-full cursor-pointer"
-                    onClick={() => {
-                      setIsVehicleModalOpen(true);
-                      setSelectedData(row.original);
-                    }}
-                  >
-                    <Tooltip title="History Replay" mouseEnterDelay={1}>
-                      <HeatMapOutlined />
-                    </Tooltip>
-                  </div>
-                );
-              },
-              footer: (props: any) => props.column.id,
+          {
+            id: "history_replay",
+            header: "History Replay",
+            cell: ({ row }: { row: Row<TableRow> }) => {
+              return (
+                <div
+                  className="flex gap-2 items-center justify-center w-full cursor-pointer"
+                  onClick={() => {
+                    setIsVehicleModalOpen(true);
+                    setSelectedData(row.original);
+                  }}
+                >
+                  <Tooltip title="History Replay" mouseEnterDelay={1}>
+                    <HeatMapOutlined />
+                  </Tooltip>
+                </div>
+              );
             },
-          ]
+            footer: (props: any) => props.column.id,
+          },
+        ]
         : []),
     ];
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [userId]);
 
   const onDownloadBtnClick = (vehicles: FormattedData["list"]) => {
     const rows = vehicles.map((vehicle, index: number) => {
@@ -456,29 +399,8 @@ export const View = () => {
   const onSubmit = async () => {
     setIsLocalLoading(true);
     setFormatedData([]);
-    if (Number(userId) !== 85380 && Number(userId) !== 83171) {
-      await getConsolidateDetail({
-        token: groupId,
-        userId: userId,
-        startDate: date.format("YYYY-MM-DD"),
-      }).then(({ data }) => {
-        if (data && data.list && Array.isArray(data.list)) {
-          setFormatedData(
-            filterVehiclesBySelectedDate(data.list).map((vehicle) => ({
-              ...vehicle,
-              End_Location: vehicle.End_Location?.replaceAll("_", " "),
-              Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
-              End_Time_formatted: moment(vehicle.End_Time).format(
-                "DD-MM-YYYY HH:mm:ss",
-              ),
-              Start_Time_formatted: moment(vehicle.Start_Time).format(
-                "DD-MM-YYYY HH:mm:ss",
-              ),
-            })),
-          );
-        }
-      });
-    } else if (Number(userId) === 83171 && selectedVehicleOption?.value) {
+    setQueryDateRange(dateRange);
+    if (selectedVehicleOption?.value) {
       await getConslidateByDateRangeDataAndVehicleNumber({
         token: groupId,
         userId: userId,
@@ -488,7 +410,7 @@ export const View = () => {
       }).then(({ data }) => {
         if (data && data.list && Array.isArray(data.list)) {
           setFormatedData(
-            filterVehiclesBySelectedDate(data.list).map((vehicle) => ({
+            filterVehiclesBySelectedDate(data.list, dateRange).map((vehicle) => ({
               ...vehicle,
               End_Location: vehicle.End_Location?.replaceAll("_", " "),
               Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
@@ -502,7 +424,7 @@ export const View = () => {
           );
         }
       });
-    } else if (Number(userId) === 85380) {
+    } else {
       await getConsolidateDateByRange({
         token: groupId,
         userId: userId,
@@ -511,7 +433,7 @@ export const View = () => {
       }).then(({ data }) => {
         if (data && data.list && Array.isArray(data.list)) {
           setFormatedData(
-            filterVehiclesBySelectedDate(data.list).map((vehicle) => ({
+            filterVehiclesBySelectedDate(data.list, dateRange).map((vehicle) => ({
               ...vehicle,
               End_Location: vehicle.End_Location?.replaceAll("_", " "),
               Start_Location: vehicle.Start_Location?.replaceAll("_", " "),
@@ -658,8 +580,6 @@ export const View = () => {
   return (
     <div>
       <Header
-        date={date}
-        setDate={setDate}
         onSubmit={onSubmit}
         dateRange={dateRange}
         setDateRange={setDateRange}
@@ -683,10 +603,10 @@ export const View = () => {
               }
               loading={
                 isLocalLoading ||
-                isConsolidateDetailLoading ||
-                isLoading ||
                 isConsolidateDateByRangeLoading ||
-                isConslidateDetailByDateRangeLoading
+                isConslidateDetailByDateRangeLoading ||
+                isConsolidateDateByRangeLazyLoading ||
+                isGetConslidateByDateRangeDataAndVehicleNumberLazyLoading
               }
               height="max-h-[75vh]"
               onDownloadBtnClick={onDownloadBtnClick}
@@ -696,10 +616,11 @@ export const View = () => {
               densityProp="sm"
               onClick={(row) => {
                 if (
-                  isConsolidateDetailLoading === false ||
-                  isLocalLoading === false ||
-                  isConsolidateDateByRangeLoading == false ||
-                  isConslidateDetailByDateRangeLoading === false
+                  isLocalLoading === false &&
+                  isConsolidateDateByRangeLoading === false &&
+                  isConslidateDetailByDateRangeLoading === false &&
+                  isConsolidateDateByRangeLazyLoading === false &&
+                  isGetConslidateByDateRangeDataAndVehicleNumberLazyLoading === false
                 ) {
                   dispatch(
                     setSelectedVehicleCustomRange({
@@ -804,6 +725,7 @@ export const View = () => {
               <LoadScript
                 googleMapsApiKey={getGoogleApiKey() || ""}
                 libraries={googleLibraries}
+                version="3.64"
                 onLoad={() => {
                   dispatch(setIsMapNotLoading(true));
                 }}
@@ -844,7 +766,7 @@ export const View = () => {
                     {formatedData.find(
                       (data) => data.veh_id === selectedVehicle.vId,
                     )?.Total_KM &&
-                    (!isPathWithDateDaignosticLoading || isMapNotLoading) ? (
+                      (!isPathWithDateDaignosticLoading || isMapNotLoading) ? (
                       <div className="bg-white absolute right-20 top-2 p-2 z-30 rounded-md">
                         Total KM:{" "}
                         {formatedData
@@ -854,42 +776,42 @@ export const View = () => {
                     ) : null}
 
                     {selectedVehicle.vId !== 0 &&
-                    vehicleItnaryWithPath &&
-                    vehicleItnaryWithPath.patharry &&
-                    vehicleItnaryWithPath.patharry.length >= 2 &&
-                    historyReplay.isHistoryReplayMode
+                      vehicleItnaryWithPath &&
+                      vehicleItnaryWithPath.patharry &&
+                      vehicleItnaryWithPath.patharry.length >= 2 &&
+                      historyReplay.isHistoryReplayMode
                       ? vehicleItnaryWithPath.patharry.map((marker, index) => (
-                          <Marker
-                            key={index}
-                            position={{ lat: marker.lat, lng: marker.lng }}
-                            icon={{
-                              url: "/assets/images/map/vehicles/vehicle-red.png",
-                              scale: 1,
-                              scaledSize: new window.google.maps.Size(60, 60),
-                              anchor: { x: 30, y: 30, equals: () => false },
-                            }}
-                            onClick={(e) => {
-                              if (e.latLng) {
-                                setInfoWindowState({
-                                  index: index,
-                                  lat: e.latLng.lat(),
-                                  lng: e.latLng.lng(),
-                                  state: true,
-                                });
-                              }
-                            }}
-                            opacity={0}
-                          >
-                            {selectedVehicle.vId !== 0 &&
+                        <Marker
+                          key={index}
+                          position={{ lat: marker.lat, lng: marker.lng }}
+                          icon={{
+                            url: "/assets/images/map/vehicles/vehicle-red.png",
+                            scale: 1,
+                            scaledSize: new window.google.maps.Size(60, 60),
+                            anchor: { x: 30, y: 30, equals: () => false },
+                          }}
+                          onClick={(e) => {
+                            if (e.latLng) {
+                              setInfoWindowState({
+                                index: index,
+                                lat: e.latLng.lat(),
+                                lng: e.latLng.lng(),
+                                state: true,
+                              });
+                            }
+                          }}
+                          opacity={0}
+                        >
+                          {selectedVehicle.vId !== 0 &&
                             infoWindowState.index === index &&
                             infoWindowState.state ? (
-                              <PolylineMouseOverInfoWindow
-                                infoWindowState={infoWindowState}
-                                marker={marker}
-                              />
-                            ) : null}
-                          </Marker>
-                        ))
+                            <PolylineMouseOverInfoWindow
+                              infoWindowState={infoWindowState}
+                              marker={marker}
+                            />
+                          ) : null}
+                        </Marker>
+                      ))
                       : null}
 
                     <StartAndEndPointMarker />
@@ -918,10 +840,10 @@ export const View = () => {
             }
             loading={
               isLocalLoading ||
-              isConsolidateDetailLoading ||
-              isLoading ||
+              isConsolidateDateByRangeLoading ||
               isConslidateDetailByDateRangeLoading ||
-              isConsolidateDateByRangeLoading
+              isConsolidateDateByRangeLazyLoading ||
+              isGetConslidateByDateRangeDataAndVehicleNumberLazyLoading
             }
             height="max-h-[75vh]"
             onDownloadBtnClick={onDownloadBtnClick}

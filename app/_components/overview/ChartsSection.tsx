@@ -164,77 +164,77 @@ type ReminderListData = Array<{
 
 type ChartConfig =
   | {
-      chartType: "double-area";
-      title: string;
-      subtitle?: string;
-      series: Array<{
-        name: string;
-        color: string;
-        alertType?: string;
-        alertResponseKey?: string;
-      }>;
-      data: Array<{ day: string; values: number[] }>;
-    }
+    chartType: "double-area";
+    title: string;
+    subtitle?: string;
+    series: Array<{
+      name: string;
+      color: string;
+      alertType?: string;
+      alertResponseKey?: string;
+    }>;
+    data: Array<{ day: string; values: number[] }>;
+  }
   | {
-      chartType: "bar";
-      title: string;
-      subtitle?: string;
-      series: Array<{
-        name: string;
-        color: string;
-        alertType?: string;
-        alertResponseKey?: string;
-      }>;
-      data: Array<{ day: string; values: number[] }>;
-    }
+    chartType: "bar";
+    title: string;
+    subtitle?: string;
+    series: Array<{
+      name: string;
+      color: string;
+      alertType?: string;
+      alertResponseKey?: string;
+    }>;
+    data: Array<{ day: string; values: number[] }>;
+  }
   | {
-      chartType: "reminder-list";
-      title: string;
-      subtitle?: string;
-      series: Array<{
-        name: string;
-        color: string;
-        alertType?: string;
-        alertResponseKey?: string;
-      }>;
-      data: ReminderListData;
-    }
+    chartType: "reminder-list";
+    title: string;
+    subtitle?: string;
+    series: Array<{
+      name: string;
+      color: string;
+      alertType?: string;
+      alertResponseKey?: string;
+    }>;
+    data: ReminderListData;
+  }
   | {
-      chartType: "line";
-      title: string;
-      subtitle?: string;
-      series: Array<{
-        name: string;
-        color: string;
-        alertType?: string;
-        alertResponseKey?: string;
-      }>;
-      data: any;
-    }
+    chartType: "line";
+    title: string;
+    subtitle?: string;
+    series: Array<{
+      name: string;
+      color: string;
+      alertType?: string;
+      alertResponseKey?: string;
+    }>;
+    data: any;
+  }
   | {
-      chartType: "dot";
-      title: string;
-      subtitle?: string;
-      series: Array<{
-        name: string;
-        color: string;
-        alertType?: string;
-        alertResponseKey?: string;
-      }>;
-      data: any;
-    }
+    chartType: "dot";
+    title: string;
+    subtitle?: string;
+    series: Array<{
+      name: string;
+      color: string;
+      alertType?: string;
+      alertResponseKey?: string;
+    }>;
+    data: any;
+  }
   | {
-      chartType: "area";
-      title: string;
-      subtitle?: string;
-      series: Array<{
-        name: string;
-        color: string;
-        alertType?: string;
-        alertResponseKey?: string;
-      }>;
-      data: any;
-    };
+    chartType: "area";
+    title: string;
+    subtitle?: string;
+    series: Array<{
+      name: string;
+      color: string;
+      alertType?: string;
+      alertResponseKey?: string;
+    }>;
+    data: any;
+  };
 
 const ChartCard = ({
   chart,
@@ -640,9 +640,9 @@ const ChartsSection = ({
       const [startDate, endDate] = Array.isArray(selectedDateRangeDateJs)
         ? selectedDateRangeDateJs
         : [
-            moment(selectedDateRangeDateJs).startOf("day").toDate(),
-            selectedDateRangeDateJs,
-          ];
+          moment(selectedDateRangeDateJs).startOf("day").toDate(),
+          selectedDateRangeDateJs,
+        ];
 
       const fetchDriverBehaviour = async () => {
         setIsDriverBehaviourLoading(true);
@@ -730,9 +730,9 @@ const ChartsSection = ({
       const [startDate, endDate] = Array.isArray(selectedDateRangeDateJs)
         ? selectedDateRangeDateJs
         : [
-            moment(selectedDateRangeDateJs).startOf("day").toDate(),
-            selectedDateRangeDateJs,
-          ];
+          moment(selectedDateRangeDateJs).startOf("day").toDate(),
+          selectedDateRangeDateJs,
+        ];
 
       const fetchTrendsData = async () => {
         setIsTrendsLoading(true);

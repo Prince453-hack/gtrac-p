@@ -80,7 +80,9 @@ export interface VehicleStatus {
   plate: string;
   isOnline: boolean;
   vehicleState: number;
+  gsmSinMode?: number;
   lastUpdateTime?: string;
+  formatTime?: string;
   speed?: number;
   location?: {
     lat: number;
@@ -131,18 +133,29 @@ export async function getVehicleStatus(
     }
 
     // Transform the response data to a more usable format
-    const vehicleStatuses: VehicleStatus[] = data.data.list.map((vehicle) => ({
-      terminalNo: vehicle.terminalNo,
-      plate: vehicle.plate,
-      isOnline: vehicle.vehicleState !== 0,
-      vehicleState: vehicle.vehicleState,
-      lastUpdateTime: vehicle.devTime,
-      speed: vehicle.speed,
-      location: {
-        lat: vehicle.lat,
-        lon: vehicle.lon,
-      },
-    }));
+    const vehicleStatuses: VehicleStatus[] = data.data.list.map((vehicle) => {
+      const formatTime = vehicle.formatTime?.trim().toLowerCase();
+      const hasLivePosition = Boolean(vehicle.devTime && vehicle.devTime !== "0");
+      const isOnline =
+        (vehicle.vehicleState === 1 || vehicle.vehicleState === 2 || vehicle.vehicleState === 5) &&
+        formatTime !== "never online" &&
+        hasLivePosition;
+
+      return {
+        terminalNo: vehicle.terminalNo,
+        plate: vehicle.plate,
+        isOnline,
+        vehicleState: vehicle.vehicleState,
+        gsmSinMode: vehicle.gsmSinMode,
+        lastUpdateTime: vehicle.devTime,
+        formatTime: vehicle.formatTime,
+        speed: vehicle.speed,
+        location: {
+          lat: vehicle.lat,
+          lon: vehicle.lon,
+        },
+      };
+    });
 
     return vehicleStatuses;
   } catch (error) {
@@ -151,8 +164,11 @@ export async function getVehicleStatus(
   }
 }
 
+let imeiQueue: { imei: string; resolve: (val: any) => void; reject: (err: any) => void }[] = [];
+let batchTimeout: NodeJS.Timeout | null = null;
+
 /**
- * Get status for a single vehicle by IMEI
+ * Get status for a single vehicle by IMEI (batched to reduce network calls)
  * @param imeiNumber - Single IMEI number to check status for
  * @returns Promise with single vehicle status information
  */
@@ -163,13 +179,39 @@ export async function getSingleVehicleStatus(
     throw new Error("IMEI number is required");
   }
 
-  try {
-    const statuses = await getVehicleStatus([imeiNumber]);
-    return statuses.length > 0 ? statuses[0] : null;
-  } catch (error) {
-    console.error(`Error fetching status for vehicle ${imeiNumber}:`, error);
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    imeiQueue.push({ imei: imeiNumber, resolve, reject });
+
+    if (batchTimeout) {
+      clearTimeout(batchTimeout);
+    }
+
+    batchTimeout = setTimeout(async () => {
+      const currentQueue = [...imeiQueue];
+      imeiQueue = [];
+      batchTimeout = null;
+
+      const uniqueImeis = Array.from(new Set(currentQueue.map((item) => item.imei)));
+
+      try {
+        const statusMap = new Map<string, VehicleStatus>();
+        const CHUNK_SIZE = 100;
+        for (let i = 0; i < uniqueImeis.length; i += CHUNK_SIZE) {
+          const chunk = uniqueImeis.slice(i, i + CHUNK_SIZE);
+          const statuses = await getVehicleStatus(chunk);
+          statuses.forEach((s) => statusMap.set(s.terminalNo, s));
+        }
+
+        currentQueue.forEach(({ imei, resolve }) => {
+          resolve(statusMap.get(imei) || null);
+        });
+      } catch (error) {
+        currentQueue.forEach(({ reject }) => {
+          reject(error);
+        });
+      }
+    }, 50);
+  });
 }
 
 /**

@@ -8,6 +8,49 @@ import useWindowSize from "@/app/hooks/useWindowSize";
 import { useSelector } from "react-redux";
 import { RootState } from "@/app/_globalRedux/store";
 import moment from "moment";
+export const vehiclePairs: Record<string, string> = {
+  "12449386": "1201000730",
+  "12449853": "1235000315",
+  "12448978": "1235000290",
+  "12449127": "1235000295",
+  "12449128": "1235000296",
+  "12448979": "1201000728",
+  "12449665": "1235000308",
+  "12449666": "1235000309",
+  "12449834": "1235000314",
+  "12449216": "1201000729",
+  "12449832": "1204004523",
+  "12448916": "1235000289",
+  "12448801": "1204004389",
+  "12449315": "1235000300",
+  "12449353": "1235000305",
+  "12449314": "1235000299",
+  "12449733": "1235000312",
+  "12449731": "1235000310",
+  "12448973": "1201000727",
+  "12449852": "1201000732",
+  "12449059": "1235000291",
+  "12449389": "1201000731",
+  "12449214": "1235000297",
+  "12448981": "1201000724",
+  "12448977": "1201000725",
+  "12449318": "1235000304",
+  "12449132": "1235000301",
+  "12448975": "1201000726",
+  "12449215": "1235000298",
+  "12449854": "1235000316",
+  "12449833": "1235000313",
+  "12449060": "1235000292",
+  "12449316": "1235000302",
+  "12448802": "1235000281",
+  "12449467": "1235000306",
+  "12449317": "1235000303",
+  "12449126": "1235000294",
+  "12448917": "1204004467",
+  "12449732": "1235000311",
+  "12448974": "1201000723",
+  "12448795": "1201000717",
+};
 
 type PluginData = {
   event: string | null;
@@ -104,7 +147,7 @@ export const AdblueChart = ({
         labels: chartData.map((d) =>
           Number(userId) === 833193
             ? moment(d.time).format("DD-MM-YYYY HH:mm")
-            : d.odometer
+            : d.odometer,
         ),
         datasets: [
           {
@@ -144,7 +187,7 @@ export const AdblueChart = ({
                 const adblue = context.parsed.y;
                 const odometer = context.label;
                 return `Adblue: ${adblue?.toFixed()} L / Odometer: ${Number(
-                  odometer
+                  odometer,
                 )?.toFixed()} Km`;
               },
             },
@@ -164,7 +207,13 @@ export const AdblueChart = ({
           y: {
             title: { display: true, text: "Adblue (L)" },
             beginAtZero: true,
-            suggestedMax: maxAdblue > 0 ? maxAdblue * 1.2 : 100,
+            suggestedMax:
+              Number(userId) === 833863
+                ? 50
+                : maxAdblue > 0
+                  ? maxAdblue * 1.2
+                  : 100,
+            max: Number(userId) === 833863 ? 50 : undefined,
             grid: { display: false },
           },
         },
@@ -201,39 +250,12 @@ export const FuelChart = ({
   const { userId } = useSelector((state: RootState) => state.auth);
   const windowWidth = useWindowSize().width;
 
-  // Build chart data; only user 833193 should use fuelTrackingRawData, others use rawData as-is
-  const chartData = useMemo(() => {
-    const isSpecialUser = Number(userId) === 833193;
-    if (fuelTrackingRawData?.list && isSpecialUser) {
-      // Preserve existing behavior for 833193 (filter + sort)
-      const fuelLevelEntries = fuelTrackingRawData.list
-        .filter(
-          (item: any) =>
-            item.fueltype === "Fuel" &&
-            item.rv !== undefined &&
-            item.rv !== null &&
-            item.rv > 5
-        )
-        .map((item: any) => ({
-          odometer: item.odometer?.toString() || "0",
-          fuel: item.rv,
-          adblue: 0,
-          time: item.gps_time,
-          gps_latitude: null,
-          gps_longitude: null,
-          location: "Unknown Location",
-          event: null,
-          amountFilled: null,
-          amountStolen: null,
-          distanceSinceLastFill: null,
-        }))
-        .sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
-      return fuelLevelEntries;
-    }
+  const isSpecialUser = Number(userId) === 833193;
 
-    // For all other users or when tracking data is absent, rely on rawData as-is
+  // Build chart data; the parent component maps fuelData correctly
+  const chartData = useMemo(() => {
     return rawData || [];
-  }, [rawData, fuelTrackingRawData, userId]);
+  }, [rawData]);
 
   // For user 833193, keep existing logic (computeMetrics)
   const fuelEvents = useMemo(() => {
@@ -313,7 +335,7 @@ export const FuelChart = ({
 
     let pointsToDraw: { x: number; y: number; color: string }[] = [];
     const xLabels = chartData.map((d: any) =>
-      Number(userId) === 833193 ? moment(d.time).format("DD/MM") : d.odometer
+      isSpecialUser ? moment(d.time).format("DD/MM HH:mm") : d.odometer,
     );
     const chart = new Chart(ctx, {
       type: "line",
@@ -326,7 +348,7 @@ export const FuelChart = ({
             borderWidth: 0,
             backgroundColor: "rgba(130, 202, 157, 0.2)",
             pointRadius: 0,
-            stepped: Number(userId) === 833193 ? "before" : false,
+            stepped: isSpecialUser ? "before" : false,
           },
           {
             data: chartData.map((d: any) => d.fuel),
@@ -335,7 +357,7 @@ export const FuelChart = ({
             borderDash: [5, 5],
             borderColor: "rgb(130, 202, 157)",
             pointRadius: 0,
-            stepped: Number(userId) === 833193 ? "before" : false,
+            stepped: isSpecialUser ? "before" : false,
           },
         ],
       },
@@ -353,9 +375,12 @@ export const FuelChart = ({
               title: () => ``,
               label: (context) => {
                 const fuel = context.parsed.y;
-                const odometer = context.label;
+                const label = context.label;
+                if (isSpecialUser) {
+                  return `Fuel: ${fuel?.toFixed(2)} L / Date: ${label}`;
+                }
                 return `Fuel: ${fuel?.toFixed()} L / Odometer: ${Number(
-                  odometer
+                  label,
                 )?.toFixed()} Km`;
               },
             },
@@ -368,7 +393,7 @@ export const FuelChart = ({
           x: {
             title: {
               display: true,
-              text: Number(userId) === 833193 ? "Date" : "Odometer (km)",
+              text: isSpecialUser ? "Date" : "Odometer (km)",
             },
             grid: { display: false },
           },
@@ -376,7 +401,10 @@ export const FuelChart = ({
             title: { display: true, text: "Fuel (L)" },
             beginAtZero: true,
             suggestedMax:
-              Math.max(...chartData.map((d: any) => d.fuel)) * 1.2 || 100,
+              Number(userId) === 833863
+                ? 350
+                : Math.max(...chartData.map((d: any) => d.fuel)) * 1.2 || 100,
+            max: Number(userId) === 833863 ? 350 : undefined,
             grid: { display: false },
           },
         },

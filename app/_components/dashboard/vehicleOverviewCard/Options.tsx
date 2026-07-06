@@ -79,7 +79,7 @@ export const Options = ({ vehicleData }: { vehicleData: VehicleData }) => {
             ) : null}
             {auth.isMarketVehicle ||
             auth.isPadlock ||
-            Number(auth.userId) === 85380 ||
+            Number(auth.userId) === 85380 || Number(auth.userId) === 6044 || 
             Number(auth.parentUser) === 85380 ||
             Number(auth.userId) === 833835 ||
             Number(auth.parentUser) === 833835 ? (

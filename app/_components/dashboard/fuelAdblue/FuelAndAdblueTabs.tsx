@@ -27,8 +27,12 @@ interface GetRawDataWithoutLocationApiResponse {
   rawdata: any[];
 }
 import moment from "moment";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { useLoginMutation } from "@/app/_globalRedux/services/fuelAuth";
+import { useLazyGetFuelLevelQuery } from "@/app/_globalRedux/services/fuelCentralData";
+import { useLazyGetSearchVhlDataQuery } from "@/app/_globalRedux/services/getSearchData/index";
+import { vehiclePairs } from "./FuelAndAdBlueChart";
 import { FuelChart, AdblueChart } from "./FuelAndAdBlueChart";
 import {
   AdblueAndFuelTable,
@@ -246,6 +250,7 @@ export const FuelAdblueTabs = ({
   error,
   startDate,
   endDate,
+  fetchTrigger = 0,
 }: {
   data: VehicleData;
   rawData: GetRawDataWithoutLocationApiResponse | undefined;
@@ -254,11 +259,84 @@ export const FuelAdblueTabs = ({
   error: FetchBaseQueryError | SerializedError | undefined;
   startDate: Date;
   endDate: Date;
+  fetchTrigger?: number;
 }) => {
-  const { userId } = useSelector((state: RootState) => state.auth);
+  const { userId, groupId } = useSelector((state: RootState) => state.auth);
   const [convertToLocation] = useLazyConvertLatLngToAddressQuery();
   const [getFuelFilledTheftKuberTrigger] =
     useLazyGetKuberFuelFillingAndTheftQuery();
+
+  const isSpecialUser = Number(userId) === 833193 || Number(userId) === 833913;
+
+  const [loginTrigger, { data: loginRes, isLoading: isAuthLoading }] =
+    useLoginMutation();
+  const [
+    getFuelLevel,
+    {
+      data: fuelLevelData,
+      isLoading: isFuelLevelLoading,
+      isError: isFuelLevelError,
+    },
+  ] = useLazyGetFuelLevelQuery();
+
+  const [getSearchVhlData, { data: searchData }] =
+    useLazyGetSearchVhlDataQuery();
+
+  useEffect(() => {
+    if (Number(userId) === 833916 && groupId && data?.vId) {
+      getSearchVhlData({
+        token: String(groupId),
+        vehreg: String(data.vId),
+        userid: String(userId),
+      });
+    }
+  }, [userId, groupId, data?.vId, getSearchVhlData]);
+
+  const datesRef = useRef({ startDate, endDate });
+  useEffect(() => {
+    datesRef.current = { startDate, endDate };
+  }, [startDate, endDate]);
+
+  const loginInitiatedRef = useRef(false);
+  useEffect(() => {
+    if (isSpecialUser && !loginInitiatedRef.current) {
+      loginInitiatedRef.current = true;
+      loginTrigger().catch((err) => {
+        loginInitiatedRef.current = false;
+        console.error("Fuel auth error:", err);
+      });
+    }
+  }, [isSpecialUser, loginTrigger]);
+
+  useEffect(() => {
+    if (isSpecialUser && loginRes?.jwt && fetchTrigger > 0) {
+      const { startDate: sD, endDate: eD } = datesRef.current;
+      const imei = vehiclePairs[String(data.vId)] || String(data.vId);
+      const timeBegin = Math.floor(new Date(sD).getTime() / 1000);
+      const timeEnd = Math.floor(new Date(eD).getTime() / 1000);
+      getFuelLevel({
+        vehicleID: imei,
+        timeBegin,
+        timeEnd,
+        token: loginRes.jwt,
+      });
+    }
+  }, [isSpecialUser, loginRes?.jwt, getFuelLevel, data.vId, fetchTrigger]);
+
+  const errorMessage = useMemo(() => {
+    if (isSpecialUser) {
+      if (fuelLevelData?.status && fuelLevelData.status.code !== 0) {
+        return (
+          fuelLevelData.status.message ||
+          "An error occurred while fetching fuel data."
+        );
+      }
+      if (isFuelLevelError) {
+        return "No Fuel Data. Please try again later.";
+      }
+    }
+    return null;
+  }, [isSpecialUser, fuelLevelData, isFuelLevelError]);
 
   const [fuelData, setFuelData] = useState<Point[]>([]);
   const [adblueData, setAdblueData] = useState<Point[]>([]);
@@ -286,7 +364,7 @@ export const FuelAdblueTabs = ({
     address: string;
   } | null>(null);
 
-  const fuelThreshold = Number(userId) === 833193 ? 10 : 50;
+  const fuelThreshold = Number(userId) === 833193 ? 50 : 50;
   const adblueThrreshold = 10;
 
   const deduplicateFuelEvents = (
@@ -296,7 +374,7 @@ export const FuelAdblueTabs = ({
     filteredFillingEvents: FillTheftLogPoint[];
     filteredTheftEvents: FillTheftLogPoint[];
   } => {
-    if (Number(userId) !== 833193) {
+    if (Number(userId) !== 833193 && Number(userId) !== 833913) {
       return {
         filteredFillingEvents: fillingEvents,
         filteredTheftEvents: theftEvents,
@@ -454,7 +532,7 @@ export const FuelAdblueTabs = ({
   const fuelCapacity = data.vehicleFuelCapacity ?? 0;
 
   const getLastFuelFromData = () => {
-    const isSpecialUser = Number(userId) === 833193;
+    const isSpecialUser = Number(userId) === 833193 || Number(userId) === 833913;
 
     if (fuelTrackingData?.list && isSpecialUser) {
       const fuelLevelEntries = fuelTrackingData.list
@@ -479,12 +557,13 @@ export const FuelAdblueTabs = ({
         return 0;
       }
 
-      const sortedByOdometer = [...fuelData].sort(
-        (a, b) => Number(b.odometer) - Number(a.odometer),
+      // Sort by time descending (latest first) to get the most recent valid fuel level
+      const sortedByTime = [...fuelData].sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
       );
 
-      for (let i = 0; i < sortedByOdometer.length; i++) {
-        const dataPoint = sortedByOdometer[i];
+      for (let i = 0; i < sortedByTime.length; i++) {
+        const dataPoint = sortedByTime[i];
         const fuelValue = Number(dataPoint?.fuel);
         if (dataPoint?.fuel && fuelValue > 0) {
           return fuelValue;
@@ -494,7 +573,7 @@ export const FuelAdblueTabs = ({
       // For user 833193 fallback: use fuelData
       if (fuelData.length === 0) return 0;
       const sortedFuelData = [...fuelData].sort(
-        (a, b) => Number(b.odometer) - Number(a.odometer),
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
       );
       const lastDataPoint = sortedFuelData[0];
       return Number(lastDataPoint?.fuel) || 0;
@@ -509,7 +588,7 @@ export const FuelAdblueTabs = ({
   const adblueFilledPercentage = data.gpsDtl.adblue ?? 0;
   const adblueCapacity = data.vehicleAdblueCapacity ?? 0;
   const actualadblue =
-    Number(userId) == 833193
+    Number(userId) == 833193 || Number(userId) == 833913
       ? adblueCapacity
       : adblueCapacity * (adblueFilledPercentage / 100);
 
@@ -541,55 +620,11 @@ export const FuelAdblueTabs = ({
   };
 
   useEffect(() => {
-    if (!rawData?.rawdata) {
-      setFuelData([]);
-      setAdblueData([]);
-      return;
-    }
-
-    // Raw mapping (no filters, no sorting) to ensure every data point is rendered
-    const mappedRaw: Point[] = rawData.rawdata.map((item: any) => ({
-      odometer:
-        item.tel_odometer?.toFixed(0) ?? item.jny_distance?.toFixed(0) ?? "",
-      fuel: item.tel_fuel,
-      adblue: item.adblue,
-      time: item.gps_time || item.gpstimeformatted,
-      gps_latitude: item.gps_latitude ?? null,
-      gps_longitude: item.gps_longitude ?? null,
-      location: "Unknown Location",
-      event: null,
-      amountFilled: null,
-      amountStolen: null,
-      distanceSinceLastFill: null,
-    }));
-
-    // Filtered+sampled mapping (kept for AdBlue and for user 833193)
-    const mappedForFilter: Point[] = rawData.rawdata
-      .filter((p: any) => p.tel_fuel !== undefined && p.tel_fuel !== null)
-      .map((item: any) => ({
-        odometer:
-          item.tel_odometer?.toFixed(0) ?? item.jny_distance?.toFixed(0) ?? "",
-        fuel: item.tel_fuel,
-        adblue: item.adblue,
-        time: item.gps_time || item.gpstimeformatted,
-        gps_latitude: item.gps_latitude ?? null,
-        gps_longitude: item.gps_longitude ?? null,
-        location: "Unknown Location",
-        event: null,
-        amountFilled: null,
-        amountStolen: null,
-        distanceSinceLastFill: null,
-      }))
-      .sort(
-        (a: Point, b: Point) =>
-          new Date(a.time).getTime() - new Date(b.time).getTime(),
-      );
-
     const filterByTime = (points: Point[]) => {
       const filtered: Point[] = [];
 
       // For userId 833193, use simpler time-based filtering without event detection
-      if (Number(userId) === 833193) {
+      if (Number(userId) === 833193 || Number(userId) === 833913) {
         points.forEach((pt) => {
           if (filtered.length === 0) {
             filtered.push(pt);
@@ -636,111 +671,141 @@ export const FuelAdblueTabs = ({
       return filtered;
     };
 
-    if (Number(userId) !== 833193) {
-      // Fuel: raw, unsampled; AdBlue: filtered sampling retained + filter adblue >= 1
-      setFuelData(mappedRaw);
-      setAdblueData(
-        filterByTime(
-          mappedForFilter.filter((pt) => pt.adblue <= 50 && pt.adblue >= 1),
-        ),
-      );
-    } else {
-      // 833193: keep filtered sampling for both
-      setFuelData(
-        filterByTime(
-          mappedForFilter.filter(
-            (pt) => typeof pt.fuel === "number" && pt.fuel > 0,
+    if (isSpecialUser) {
+      if (fuelLevelData?.tankData?.[0]?.data) {
+        const mapped: Point[] = fuelLevelData.tankData[0].data
+          .map((item: any) => ({
+            odometer: "",
+            fuel: item.aV,
+            adblue: 0,
+            time: new Date(item.eD * 1000).toISOString(),
+            gps_latitude: null,
+            gps_longitude: null,
+            location: "Unknown Location",
+            event: null,
+            amountFilled: null,
+            amountStolen: null,
+            distanceSinceLastFill: null,
+          }))
+          .sort(
+            (a: any, b: any) =>
+              new Date(a.time).getTime() - new Date(b.time).getTime(),
+          );
+
+        setFuelData(
+          filterByTime(
+            mapped.filter((pt) => typeof pt.fuel === "number" && pt.fuel > 0),
           ),
-        ),
-      );
-      setAdblueData(
-        filterByTime(
-          mappedForFilter.filter((pt) => pt.adblue <= 50 && pt.adblue >= 1),
-        ),
-      );
-    }
-  }, [rawData, userId]);
-
-  useEffect(() => {
-    if (Number(userId) !== 833193) {
-      const process = async (
-        points: Point[],
-        key: "fuel" | "adblue",
-        setter: React.Dispatch<React.SetStateAction<Point[]>>,
-      ) => {
-        const enriched = computeMetrics(
-          points,
-          key,
-          key === "adblue" ? adblueThrreshold : fuelThreshold,
-        ).filter((pt) => pt.event !== null);
-
-        const resolved = await Promise.all(
-          enriched.map(async (pt) => {
-            try {
-              if (pt.gps_latitude != null && pt.gps_longitude != null) {
-                const { data: addressData } = await convertToLocation({
-                  userId: Number(userId),
-                  latitude: pt.gps_latitude,
-                  longitude: pt.gps_longitude,
-                });
-                return {
-                  ...pt,
-                  location:
-                    addressData?.loc.replaceAll("_", " ") ?? "Unknown Location",
-                  event: pt.event as "filled" | "theft" | null,
-                };
-              }
-            } catch {}
-            return {
-              ...pt,
-              location: "Unknown Location",
-              event: pt.event as "filled" | "theft" | null,
-            };
-          }),
         );
-        setter(resolved);
-      };
-
-      if (fuelData.length > 0) process(fuelData, "fuel", setFuelEvents);
-      if (adblueData.length > 0) process(adblueData, "adblue", setAdblueEvents);
+      } else {
+        setFuelData([]);
+      }
+      setAdblueData([]);
+      return;
     }
-  }, [fuelData, adblueData, convertToLocation, userId]);
+
+    if (!rawData?.rawdata) {
+      setFuelData([]);
+      setAdblueData([]);
+      return;
+    }
+
+    // Raw mapping (no filters, no sorting) to ensure every data point is rendered
+    const mappedRaw: Point[] = rawData.rawdata.map((item: any) => ({
+      odometer:
+        item.tel_odometer?.toFixed(0) ?? item.jny_distance?.toFixed(0) ?? "",
+      fuel: item.tel_fuel,
+      adblue: item.adblue,
+      time: item.gps_time || item.gpstimeformatted,
+      gps_latitude: item.gps_latitude ?? null,
+      gps_longitude: item.gps_longitude ?? null,
+      location: "Unknown Location",
+      event: null,
+      amountFilled: null,
+      amountStolen: null,
+      distanceSinceLastFill: null,
+    }));
+
+    // Filtered+sampled mapping (kept for AdBlue and for user 833193)
+    const mappedForFilter: Point[] = rawData.rawdata
+      .filter((p: any) => p.tel_fuel !== undefined && p.tel_fuel !== null)
+      .map((item: any) => ({
+        odometer:
+          item.tel_odometer?.toFixed(0) ?? item.jny_distance?.toFixed(0) ?? "",
+        fuel: item.tel_fuel,
+        adblue: item.adblue,
+        time: item.gps_time || item.gpstimeformatted,
+        gps_latitude: item.gps_latitude ?? null,
+        gps_longitude: item.gps_longitude ?? null,
+        location: "Unknown Location",
+        event: null,
+        amountFilled: null,
+        amountStolen: null,
+        distanceSinceLastFill: null,
+      }))
+      .sort(
+        (a: Point, b: Point) =>
+          new Date(a.time).getTime() - new Date(b.time).getTime(),
+      );
+
+    setFuelData(mappedRaw);
+    setAdblueData(
+      filterByTime(
+        mappedForFilter.filter((pt) => pt.adblue <= 50 && pt.adblue >= 1),
+      ),
+    );
+  }, [rawData, fuelLevelData, userId, isSpecialUser]);
 
   useEffect(() => {
-    if (Number(userId) === 833193) {
-      getFuelFilledTheftKuberTrigger({
-        userId: Number(userId),
-        vehId: data.vId,
-        startDate: moment(startDate).format("YYYY-MM-DD HH:mm"),
-        endDate: moment(endDate).format("YYYY-MM-DD HH:mm"),
-        type: 1,
-      }).then(({ data }) => {
-        if (data) {
-          data.list &&
-            Array.isArray(data.list) &&
-            setFuelFillingEvents(data.list);
-        }
-      });
+    const process = async (
+      points: Point[],
+      key: "fuel" | "adblue",
+      setter: React.Dispatch<React.SetStateAction<Point[]>>,
+    ) => {
+      const enriched = computeMetrics(
+        points,
+        key,
+        key === "adblue" ? adblueThrreshold : fuelThreshold,
+      ).filter((pt) => pt.event !== null);
 
-      getFuelFilledTheftKuberTrigger({
-        userId: Number(userId),
-        vehId: data.vId,
-        startDate: moment(startDate).format("YYYY-MM-DD HH:mm"),
-        endDate: moment(endDate).format("YYYY-MM-DD HH:mm"),
-        type: 3,
-      }).then(({ data }) => {
-        if (data) {
-          data.list &&
-            Array.isArray(data.list) &&
-            setFuelTheftEvents(data.list);
-        }
-      });
-    }
+      const resolved = await Promise.all(
+        enriched.map(async (pt) => {
+          try {
+            if (pt.gps_latitude != null && pt.gps_longitude != null) {
+              const { data: addressData } = await convertToLocation({
+                userId: Number(userId),
+                latitude: pt.gps_latitude,
+                longitude: pt.gps_longitude,
+              });
+              return {
+                ...pt,
+                location:
+                  addressData?.loc.replaceAll("_", " ") ?? "Unknown Location",
+                event: pt.event as "filled" | "theft" | null,
+              };
+            }
+          } catch {}
+          return {
+            ...pt,
+            location: "Unknown Location",
+            event: pt.event as "filled" | "theft" | null,
+          };
+        }),
+      );
+      setter(resolved);
+    };
+
+    if (fuelData.length > 0) process(fuelData, "fuel", setFuelEvents);
+    if (adblueData.length > 0) process(adblueData, "adblue", setAdblueEvents);
+  }, [fuelData, adblueData, convertToLocation, userId, fuelThreshold]);
+
+  useEffect(() => {
+    // Disable AllFillTheftLog trigger for user 833193
   }, [userId, startDate, endDate]);
 
   // Apply deduplication to Kuber fuel events
   useEffect(() => {
-    if (Number(userId) === 833193) {
+    if (Number(userId) === 833193 || Number(userId) === 833913) {
       const { filteredFillingEvents, filteredTheftEvents } =
         deduplicateFuelEvents(fuelFillingEvents, fuelTheftEvents);
       setFuelFillingEvents(filteredFillingEvents);
@@ -750,7 +815,7 @@ export const FuelAdblueTabs = ({
 
   // Process new fuel tracking data
   useEffect(() => {
-    if (fuelTrackingData?.list && Number(userId) === 833193) {
+    if (fuelTrackingData?.list && (Number(userId) === 833193 || Number(userId) === 833913)) {
       // Process fuel filling events (only "Fuel Filling" entries)
       const fillingEvents = fuelTrackingData.list
         .filter((item: any) => item.fueltype === "Fuel Filling")
@@ -810,6 +875,7 @@ export const FuelAdblueTabs = ({
     type: "fuel" | "adblue";
     event: "filled" | "theft";
   }): ColumnsType<any> => {
+    const isSpecial = Number(userId) === 833193 || Number(userId) === 833913;
     const baseColumns: any[] = [
       {
         title: "Time",
@@ -821,24 +887,32 @@ export const FuelAdblueTabs = ({
         dataIndex: "odometer",
         render: (val: string) => Number(val).toLocaleString(),
       },
-      {
-        title: "Location",
-        dataIndex: "location",
-        render: (val: string, record: any) => (
-          <div
-            className="cursor-pointer underline underline-offset-1"
-            onClick={() => {
-              if (record.gps_latitude && record.gps_longitude) {
-                openMapView(record.gps_latitude, record.gps_longitude, val);
-              }
-            }}
-          >
-            <Tooltip title={val.length > 25 ? val : ""}>
-              {val.slice(0, 25)}
-            </Tooltip>
-          </div>
-        ),
-      },
+      ...(!isSpecial
+        ? [
+            {
+              title: "Location",
+              dataIndex: "location",
+              render: (val: string, record: any) => (
+                <div
+                  className="cursor-pointer underline underline-offset-1"
+                  onClick={() => {
+                    if (record.gps_latitude && record.gps_longitude) {
+                      openMapView(
+                        record.gps_latitude,
+                        record.gps_longitude,
+                        val,
+                      );
+                    }
+                  }}
+                >
+                  <Tooltip title={val.length > 25 ? val : ""}>
+                    {val.slice(0, 25)}
+                  </Tooltip>
+                </div>
+              ),
+            },
+          ]
+        : []),
       opts.event === "filled"
         ? {
             title: opts.type === "fuel" ? "Fuel Filled" : "AdBlue Filled",
@@ -936,25 +1010,28 @@ export const FuelAdblueTabs = ({
       dataIndex: "fillingTime",
       render: (val: string) => moment(val).format("DD MMM, YYYY HH:mm"),
     },
-    {
-      title: "Location",
-      dataIndex: "event_address",
-      render: (val: string, record: any) => (
-        <div
-          className="cursor-pointer text-blue-600 hover:text-blue-800 underline"
-          onClick={() => {
-            if (record.latitude && record.longitude) {
-              openMapView(record.latitude, record.longitude, val);
-            }
-          }}
-        >
-          <Tooltip title={val?.length > 25 ? val : ""}>
-            {val?.slice(0, 25)}
-          </Tooltip>
-        </div>
-      ),
-    },
-
+    ...(Number(userId) !== 833193 && Number(userId) !== 833913
+      ? [
+          {
+            title: "Location",
+            dataIndex: "event_address",
+            render: (val: string, record: any) => (
+              <div
+                className="cursor-pointer text-blue-600 hover:text-blue-800 underline"
+                onClick={() => {
+                  if (record.latitude && record.longitude) {
+                    openMapView(record.latitude, record.longitude, val);
+                  }
+                }}
+              >
+                <Tooltip title={val?.length > 25 ? val : ""}>
+                  {val?.slice(0, 25)}
+                </Tooltip>
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       title: opts.event === "filled" ? "Fill Value" : "Theft Value",
       dataIndex: "value",
@@ -974,24 +1051,28 @@ export const FuelAdblueTabs = ({
       dataIndex: "odometer",
       render: (val: number) => val || "–",
     },
-    {
-      title: "Location",
-      dataIndex: "fillingtheftaddress",
-      render: (val: string, record: any) => (
-        <div
-          className="cursor-pointer text-blue-600 hover:text-blue-800 underline"
-          onClick={() => {
-            if (record.gps_latitude && record.gps_longitude) {
-              openMapView(record.gps_latitude, record.gps_longitude, val);
-            }
-          }}
-        >
-          <Tooltip title={val?.length > 25 ? val : ""}>
-            {val?.slice(0, 25) || "–"}
-          </Tooltip>
-        </div>
-      ),
-    },
+    ...(Number(userId) !== 833193 && Number(userId) !== 833913
+      ? [
+          {
+            title: "Location",
+            dataIndex: "fillingtheftaddress",
+            render: (val: string, record: any) => (
+              <div
+                className="cursor-pointer text-blue-600 hover:text-blue-800 underline"
+                onClick={() => {
+                  if (record.gps_latitude && record.gps_longitude) {
+                    openMapView(record.gps_latitude, record.gps_longitude, val);
+                  }
+                }}
+              >
+                <Tooltip title={val?.length > 25 ? val : ""}>
+                  {val?.slice(0, 25) || "–"}
+                </Tooltip>
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       title: "Fuel Filled",
       dataIndex: "filling",
@@ -1072,10 +1153,17 @@ export const FuelAdblueTabs = ({
           {type === "fuel" ? (
             <div className="bg-black text-white shadow-inner py-1.5 px-2 rounded-sm">
               Fuel:{" "}
-              {actualFuel &&
-              (typeof actualFuel === "number" || !isNaN(Number(actualFuel)))
-                ? Number(actualFuel).toFixed(0)
-                : 0}{" "}
+              {Number(userId) === 833916
+                ? (() => {
+                    const pct = searchData?.list?.[0]?.gpsDtl?.fuel ?? data.gpsDtl.fuel ?? 0;
+                    const capacity = data.vehicleFuelCapacity ?? 0;
+                    const liters = (pct / 100) * capacity;
+                    return liters.toFixed(0);
+                  })()
+                : actualFuel &&
+                  (typeof actualFuel === "number" || !isNaN(Number(actualFuel)))
+                  ? Number(actualFuel).toFixed(0)
+                  : 0}{" "}
               L
             </div>
           ) : (
@@ -1218,21 +1306,23 @@ export const FuelAdblueTabs = ({
     {
       key: "fuel",
       label: "Fuel",
-      children: isLoading ? (
-        <div className="flex justify-center items-center py-5">
-          <Spin spinning size="large" />
-        </div>
-      ) : Number(userId) === 833193 ? (
-        fuelTrackingData?.list ? (
-          renderNewFuelTrackingContent()
+      children:
+        isLoading ||
+        (isSpecialUser &&
+          !errorMessage &&
+          (isAuthLoading || isFuelLevelLoading || !fuelLevelData)) ? (
+          <div className="flex justify-center items-center py-5">
+            <Spin spinning size="large" />
+          </div>
+        ) : errorMessage ? (
+          <div className="flex justify-center items-center py-10">
+            <Empty description={errorMessage} />
+          </div>
         ) : (
-          renderTabContentKuber("fuel", fuelFillingEvents, fuelTheftEvents)
-        )
-      ) : (
-        renderTabContent("fuel", fuelEvents)
-      ),
+          renderTabContent("fuel", fuelEvents)
+        ),
     },
-    ...(Number(userId) === 833193
+    ...(Number(userId) === 833193 || Number(userId) === 833913
       ? []
       : [
           {

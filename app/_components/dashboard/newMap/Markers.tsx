@@ -125,28 +125,147 @@ const calculateBearing = (
 
   return (bearing + 360) % 360;
 };
-const getMarkerPosition = (marker: any, accessLabel: number | null) => {
-  const isElock = accessLabel === 6 && getLatestGPSTime(marker) === "ELOCK";
 
-  if (isElock) {
-    const elockLat = marker.ELOCKInfo?.lat;
-    const elockLng = marker.ELOCKInfo?.lng;
-    if (elockLat && elockLng && elockLat !== 0 && elockLng !== 0) {
+const normalizeAngle = (angle?: number | null) => {
+  if (angle === null || angle === undefined || Number.isNaN(Number(angle))) {
+    return 0;
+  }
+
+  return ((Number(angle) % 360) + 360) % 360;
+};
+
+const vehicleIconRotationCache = new Map<string, Promise<string> | string>();
+
+const getRotatedVehicleIconUrl = async (
+  sourceUrl: string,
+  angle?: number | null,
+) => {
+  const normalizedAngle = normalizeAngle(angle);
+
+  if (!normalizedAngle) {
+    return sourceUrl;
+  }
+
+  const cacheKey = `${sourceUrl}|${normalizedAngle}`;
+  const cached = vehicleIconRotationCache.get(cacheKey);
+
+  if (typeof cached === "string") {
+    return cached;
+  }
+
+  if (cached) {
+    return cached;
+  }
+
+  const promise = new Promise<string>((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      const size = 60;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        resolve(sourceUrl);
+        return;
+      }
+
+      context.clearRect(0, 0, size, size);
+      context.translate(size / 2, size / 2);
+      context.rotate((normalizedAngle * Math.PI) / 180);
+      context.drawImage(image, -size / 2, -size / 2, size, size);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.onerror = () => resolve(sourceUrl);
+    image.src = sourceUrl;
+  }).then((result) => {
+    vehicleIconRotationCache.set(cacheKey, result);
+    return result;
+  });
+
+  vehicleIconRotationCache.set(cacheKey, promise);
+  return promise;
+};
+
+const applyRotatedVehicleIcon = async (
+  marker: google.maps.Marker,
+  sourceUrl: string,
+  angle?: number | null,
+) => {
+  const rotatedUrl = await getRotatedVehicleIconUrl(sourceUrl, angle);
+  marker.setIcon({
+    url: rotatedUrl,
+    scaledSize: new google.maps.Size(60, 60),
+    anchor: new google.maps.Point(30, 30),
+  });
+};
+
+const getPreferredInfo = (original: any) => {
+  if (!original) return null;
+  const gpsInfo = original.GPSInfo;
+  const elockInfo = original.ELOCKInfo;
+
+  if (!gpsInfo && !elockInfo) return null;
+  if (!gpsInfo) return elockInfo;
+  if (!elockInfo) return gpsInfo;
+
+  const hasA = (reg?: string) => {
+    if (!reg) return false;
+    const trimmed = reg.trim();
+    return trimmed.endsWith(" A") || trimmed.endsWith("A");
+  };
+
+  const isGpsA = hasA(gpsInfo.vehReg);
+  const isElockA = hasA(elockInfo.vehReg);
+
+  let infoA = null;
+  let infoNonA = null;
+
+  if (isGpsA && !isElockA) {
+    infoA = gpsInfo;
+    infoNonA = elockInfo;
+  } else if (!isGpsA && isElockA) {
+    infoA = elockInfo;
+    infoNonA = gpsInfo;
+  }
+
+  if (!infoNonA || !infoA) {
+    const gpsTime = gpsInfo.gpstime ? new Date(gpsInfo.gpstime).getTime() : 0;
+    const elockTime = elockInfo.gpstime ? new Date(elockInfo.gpstime).getTime() : 0;
+    return gpsTime >= elockTime ? gpsInfo : elockInfo;
+  }
+
+  const nonAWorking = infoNonA.mode !== "NOT WORKING";
+  const aWorking = infoA.mode !== "NOT WORKING";
+
+  if (nonAWorking) {
+    return infoNonA;
+  } else if (aWorking) {
+    return infoA;
+  } else {
+    return infoNonA;
+  }
+};
+
+const getMarkerPosition = (marker: any, accessLabel?: number | null) => {
+  const preferredInfo = getPreferredInfo(marker);
+  if (preferredInfo) {
+    const lat = preferredInfo.lat;
+    const lng = preferredInfo.lng || preferredInfo.lon;
+    if (lat && lng && Number(lat) !== 0 && Number(lng) !== 0) {
       return {
-        lat: elockLat,
-        lng: elockLng,
+        lat: Number(lat),
+        lng: Number(lng),
       };
     }
-    return {
-      lat: marker.gpsDtl.latLngDtl.lat,
-      lng: marker.gpsDtl.latLngDtl.lng,
-    };
-  } else {
-    return {
-      lat: marker.gpsDtl.latLngDtl.lat,
-      lng: marker.gpsDtl.latLngDtl.lng,
-    };
   }
+
+  return {
+    lat: Number(marker.gpsDtl.latLngDtl.lat) || 0,
+    lng: Number(marker.gpsDtl.latLngDtl.lng) || 0,
+  };
 };
 const getInfoWindowPosition = (marker: any, accessLabel: number | null) => {
   if (marker.vehicleTrip.trip_id) {
@@ -235,20 +354,33 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
   );
 
   const getIconUrl = useCallback(
-    (marker: MarkersType["gpsDtl"]): string => {
+    (marker: any): string => {
+      const preferredInfo = getPreferredInfo(marker);
+      
+      let latestMode = marker.gpsDtl.mode;
+      let latestTime = marker.gpsDtl?.latLngDtl?.gpstime ? new Date(marker.gpsDtl.latLngDtl.gpstime).getTime() : 0;
+      
+      if (preferredInfo) {
+        latestMode = preferredInfo.mode || marker.gpsDtl.mode;
+        latestTime = preferredInfo.gpstime ? new Date(preferredInfo.gpstime).getTime() : latestTime;
+      }
+
+      const hoursSinceLastUpdate = latestTime > 0 ? (new Date().getTime() - latestTime) / (1000 * 60 * 60) : 999;
+      const isNotWorking = latestMode === "NOT WORKING" || hoursSinceLastUpdate >= 24;
+
       return isCheckInAccount(Number(auth.userId))
         ? `/assets/images/map/vehicles/checkin.png`
         : Number(auth.userId) === 85182
-        ? `/assets/images/map/vehicles/${vehicleVar}-black.png`
-        : marker.notworkingHrs >= 24
-        ? `/assets/images/map/vehicles/${vehicleVar}-black.png`
-        : checkIfIgnitionOnOrOff({
-            ignitionState: marker.ignState.toLowerCase() as "off" | "on",
-            speed: marker.speed,
-            mode: marker.mode,
-          }) === "On"
-        ? `/assets/images/map/vehicles/${vehicleVar}-green.png`
-        : `/assets/images/map/vehicles/${vehicleVar}-red.png`;
+          ? `/assets/images/map/vehicles/${vehicleVar}-black.png`
+          : isNotWorking
+            ? `/assets/images/map/vehicles/${vehicleVar}-black.png`
+            : checkIfIgnitionOnOrOff({
+              ignitionState: marker.gpsDtl.ignState.toLowerCase() as "off" | "on",
+              speed: marker.gpsDtl.speed,
+              mode: latestMode,
+            }) === "On"
+              ? `/assets/images/map/vehicles/${vehicleVar}-green.png`
+              : `/assets/images/map/vehicles/${vehicleVar}-red.png`;
     },
     [auth, vehicleVar]
   );
@@ -305,8 +437,11 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
       ) {
         const currentLat = selectedVehicle.gpsDtl.latLngDtl.lat;
         const currentLng = selectedVehicle.gpsDtl.latLngDtl.lng;
+        const serverRotation = normalizeAngle(selectedVehicle.gpsDtl.angle);
 
-        if (prevPosition.lat !== null && prevPosition.lng !== null) {
+        if (serverRotation !== 0) {
+          setRotation(serverRotation);
+        } else if (prevPosition.lat !== null && prevPosition.lng !== null) {
           const bearing = calculateBearing(
             prevPosition.lat,
             prevPosition.lng,
@@ -370,7 +505,7 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
       if (
         selectedDashboardVehicle.length === 0 &&
         selectedDashboardVehicle.length !==
-          prevSelectedDashboardVehicleLength.current
+        prevSelectedDashboardVehicleLength.current
       ) {
         firstRender.current = 0;
         fromSelectedTONone.current = true;
@@ -421,9 +556,9 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
         markersToShow =
           selectedVehicle.vId !== 0
             ? markers.filter(
-                (marker) =>
-                  marker.vId === selectedVehicle.vId && marker.visibility
-              )
+              (marker) =>
+                marker.vId === selectedVehicle.vId && marker.visibility
+            )
             : markers.filter((marker) => marker.visibility);
       } else {
         markersToShow = [];
@@ -441,7 +576,7 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
           const googleMarker = new google.maps.Marker({
             position,
             icon: {
-              url: getIconUrl(marker.gpsDtl),
+              url: getIconUrl(marker),
               scaledSize: new google.maps.Size(60, 60),
               anchor: new google.maps.Point(30, 30),
             },
@@ -449,12 +584,12 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
             label: {
               text:
                 vehicleListType === "trip" ||
-                vehicleListType === "vehicle-allocation-trip"
+                  vehicleListType === "vehicle-allocation-trip"
                   ? `${getAbbreviation(
-                      marker.vehicleTrip.station_from_location
-                    )}-${getAbbreviation(
-                      marker.vehicleTrip.station_to_location
-                    )}\n${marker.vehReg}`
+                    marker.vehicleTrip.station_from_location
+                  )}-${getAbbreviation(
+                    marker.vehicleTrip.station_to_location
+                  )}\n${marker.vehReg}`
                   : `${marker.vehReg}`,
               color: "#000",
               className: "custom-label",
@@ -465,6 +600,12 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
           googleMarker.addListener("click", () => {
             dispatch(setIsMarkerInfoWindowOpen(marker.vId));
           });
+
+          void applyRotatedVehicleIcon(
+            googleMarker,
+            getIconUrl(marker),
+            marker.gpsDtl.angle,
+          );
 
           return googleMarker;
         });
@@ -494,19 +635,19 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
             map, // Attach directly to the map
 
             icon: {
-              url: getIconUrl(marker.gpsDtl),
+              url: getIconUrl(marker),
               scaledSize: new google.maps.Size(60, 60),
               anchor: new google.maps.Point(30, 30),
             },
             label: {
               text:
                 vehicleListType === "trip" ||
-                vehicleListType === "vehicle-allocation-trip"
+                  vehicleListType === "vehicle-allocation-trip"
                   ? `${getAbbreviation(
-                      marker.vehicleTrip.station_from_location
-                    )}-${getAbbreviation(
-                      marker.vehicleTrip.station_to_location
-                    )}\n${marker.vehReg}`
+                    marker.vehicleTrip.station_from_location
+                  )}-${getAbbreviation(
+                    marker.vehicleTrip.station_to_location
+                  )}\n${marker.vehReg}`
                   : `${marker.vehReg}`,
               color: "#000",
               className: "custom-label",
@@ -517,6 +658,12 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
           googleMarker.addListener("click", () => {
             dispatch(setIsMarkerInfoWindowOpen(marker.vId));
           });
+
+          void applyRotatedVehicleIcon(
+            googleMarker,
+            getIconUrl(marker),
+            marker.gpsDtl.angle,
+          );
 
           return googleMarker;
         });
@@ -571,12 +718,12 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
             >
               <div
                 style={{
-                  transform: `rotate(${rotation}deg)`,
+                  transform: `rotate(${normalizeAngle(selectedVehicle.gpsDtl.angle) || rotation}deg)`,
                   transformOrigin: "center",
                 }}
               >
                 <img
-                  src={getIconUrl(selectedVehicle.gpsDtl)}
+                  src={getIconUrl(selectedVehicle)}
                   alt="Selected Vehicle"
                   width={60}
                   height={60}
@@ -614,6 +761,14 @@ const MarkersCustomInfoWindow: React.FC<{
   const createPoi = useSelector((state: RootState) => state.createPoi);
   const auth = useSelector((state: RootState) => state.auth);
 
+  const preferredInfo = getPreferredInfo(marker);
+  const hasValidLatest = preferredInfo?.lat && (preferredInfo?.lng || preferredInfo?.lon) && Number(preferredInfo.lat) !== 0 && Number(preferredInfo.lng || preferredInfo.lon) !== 0;
+
+  const resolvedLat = hasValidLatest ? Number(preferredInfo.lat) : Number(marker.gpsDtl.latLngDtl.lat) || 0;
+  const resolvedLng = hasValidLatest ? Number(preferredInfo.lng || preferredInfo.lon) : Number(marker.gpsDtl.latLngDtl.lng) || 0;
+  const resolvedAddr = hasValidLatest ? (preferredInfo.addr || marker.gpsDtl.latLngDtl.addr) : marker.gpsDtl.latLngDtl.addr;
+  const resolvedTime = hasValidLatest ? (preferredInfo.gpstime || marker.gpsDtl.latLngDtl.gpstime) : marker.gpsDtl.latLngDtl.gpstime;
+
   const handlePoiToggle = () => {
     dispatch(setCreatePoi(!createPoi.isCreatePoi));
   };
@@ -631,10 +786,10 @@ const MarkersCustomInfoWindow: React.FC<{
             if (next && map) {
               const markerLat = marker.vehicleTrip.trip_id
                 ? Number(marker.vehicleTrip.gps.latLngDtl.lat)
-                : marker.gpsDtl.latLngDtl.lat;
+                : resolvedLat;
               const markerLng = marker.vehicleTrip.trip_id
                 ? Number(marker.vehicleTrip.gps.latLngDtl.lng)
-                : marker.gpsDtl.latLngDtl.lng;
+                : resolvedLng;
 
               if (markerLat !== 0 && markerLng !== 0) {
                 map.setCenter({ lat: markerLat, lng: markerLng });
@@ -648,11 +803,10 @@ const MarkersCustomInfoWindow: React.FC<{
             if (next && openSetting) openSetting();
             if (!next && isSettingOpen && openSetting) openSetting();
           }}
-          className={`p-1 rounded-full transition mt-0.5 ${
-            createPoi.isCreatePoi
+          className={`p-1 rounded-full transition mt-0.5 ${createPoi.isCreatePoi
               ? "bg-blue-200 hover:bg-blue-300"
               : "bg-gray-200 hover:bg-gray-300"
-          }`}
+            }`}
           title={
             createPoi.isCreatePoi ? "Disable POI Drawing" : "Enable POI Drawing"
           }
@@ -684,11 +838,11 @@ const MarkersCustomInfoWindow: React.FC<{
         <div className="col-span-3">
           {marker.vehicleTrip.trip_id
             ? `${Number(marker.vehicleTrip.gps.latLngDtl.lat).toFixed(
-                2
-              )} | ${Number(marker.vehicleTrip.gps.latLngDtl.lng).toFixed(2)}`
-            : `${marker.gpsDtl.latLngDtl.lat.toFixed(
-                2
-              )} | ${marker.gpsDtl.latLngDtl.lng.toFixed(2)}`}
+              2
+            )} | ${Number(marker.vehicleTrip.gps.latLngDtl.lng).toFixed(2)}`
+            : `${resolvedLat.toFixed(
+              2
+            )} | ${resolvedLng.toFixed(2)}`}
         </div>
         <div className="col-span-2 font-medium text-neutral-700">Address:</div>
         <div className="col-span-3 cursor-pointer">
@@ -700,13 +854,13 @@ const MarkersCustomInfoWindow: React.FC<{
               {marker.gpsDtl.latLngDtl.addr?.replaceAll("_", " ").slice(0, 45)}
               {marker.gpsDtl.latLngDtl.addr?.length > 45 ? "..." : ""}
             </Tooltip>
-          ) : marker.gpsDtl.latLngDtl.addr ? (
+          ) : resolvedAddr ? (
             <Tooltip
-              title={marker.gpsDtl.latLngDtl.addr?.replaceAll("_", " ")}
+              title={resolvedAddr.replaceAll("_", " ")}
               mouseEnterDelay={1}
             >
-              {marker.gpsDtl.latLngDtl.addr?.replaceAll("_", " ").slice(0, 45)}
-              {marker.gpsDtl.latLngDtl.addr?.length > 45 ? "..." : ""}
+              {resolvedAddr.replaceAll("_", " ").slice(0, 45)}
+              {resolvedAddr.length > 45 ? "..." : ""}
             </Tooltip>
           ) : null}
         </div>
@@ -732,7 +886,7 @@ const MarkersCustomInfoWindow: React.FC<{
           Last Update:
         </div>
         <div className="col-span-3">
-          {marker.vehicleTrip.trip_id ? "" : marker.gpsDtl.latLngDtl.gpstime}
+          {marker.vehicleTrip.trip_id ? "" : resolvedTime}
         </div>
         <div className="col-span-2 font-medium text-neutral-700">
           Idle Time:

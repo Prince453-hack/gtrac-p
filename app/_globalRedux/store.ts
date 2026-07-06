@@ -84,6 +84,10 @@ import { elockOtpApi } from "./services/elockOtp";
 import { internalProcessApi } from "./services/internalProcess";
 import { recordQueryApi } from "./services/recordQuery";
 import { breathAnalyzerApi } from "./services/breathAnalyzer";
+import { dashcamAlertsApi } from "./services/dashcamAlerts";
+import { ecoTripDetailsApi } from "./services/ecoTripDetails";
+import { fuelAuthApi } from "./services/fuelAuth";
+import { fuelCentralDataApi } from "./services/fuelCentralData";
 
 export const store = configureStore({
   reducer: {
@@ -169,6 +173,10 @@ export const store = configureStore({
     [internalProcessApi.reducerPath]: internalProcessApi.reducer,
     [recordQueryApi.reducerPath]: recordQueryApi.reducer,
     [breathAnalyzerApi.reducerPath]: breathAnalyzerApi.reducer,
+    [dashcamAlertsApi.reducerPath]: dashcamAlertsApi.reducer,
+    [ecoTripDetailsApi.reducerPath]: ecoTripDetailsApi.reducer,
+    [fuelAuthApi.reducerPath]: fuelAuthApi.reducer,
+    [fuelCentralDataApi.reducerPath]: fuelCentralDataApi.reducer,
   },
   devTools: process.env.NODE_ENV !== "production",
   middleware: (getDefaultMiddleware) =>
@@ -208,6 +216,10 @@ export const store = configureStore({
       internalProcessApi.middleware,
       recordQueryApi.middleware,
       breathAnalyzerApi.middleware,
+      dashcamAlertsApi.middleware,
+      ecoTripDetailsApi.middleware,
+      fuelAuthApi.middleware,
+      fuelCentralDataApi.middleware,
     ]),
 });
 

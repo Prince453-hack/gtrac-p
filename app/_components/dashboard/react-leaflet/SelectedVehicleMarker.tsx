@@ -16,6 +16,8 @@ import 'leaflet-rotatedmarker';
 import { getLatestGPSTime } from '../utils/getLatestGPSTime';
 import { getNormalOrControllerId } from '../utils/getNormalOrControllerId';
 
+const AnyMarker = Marker as unknown as any;
+
 const calculateBearing = (prevLat: number, prevLng: number, currLat: number, currLng: number) => {
 	const toRadians = (degrees: number) => degrees * (Math.PI / 180);
 	const toDegrees = (radians: number) => radians * (180 / Math.PI);
@@ -30,6 +32,14 @@ const calculateBearing = (prevLat: number, prevLng: number, currLat: number, cur
 	const bearing = toDegrees(Math.atan2(y, x));
 
 	return (bearing + 360) % 360; // Normalize to 0-360 degrees
+};
+
+const normalizeAngle = (angle?: number | null) => {
+	if (angle === null || angle === undefined || Number.isNaN(Number(angle))) {
+		return 0;
+	}
+
+	return ((Number(angle) % 360) + 360) % 360;
 };
 
 function SelectedVehicleMarker() {
@@ -136,9 +146,12 @@ function SelectedVehicleMarker() {
 		if (selectedVehicle && selectedVehicle.gpsDtl.latLngDtl.lat !== 0 && selectedVehicle.gpsDtl.latLngDtl.lng !== 0) {
 			const currentLat = selectedVehicle.gpsDtl.latLngDtl.lat;
 			const currentLng = selectedVehicle.gpsDtl.latLngDtl.lng;
+ 			const serverAngle = selectedVehicle.gpsDtl.angle;
 
 			// If we have a previous position, calculate the bearing
-			if (prevPosition.lat !== null && prevPosition.lng !== null) {
+			if (serverAngle !== null && serverAngle !== undefined && !Number.isNaN(Number(serverAngle))) {
+				setRotation(normalizeAngle(serverAngle));
+			} else if (prevPosition.lat !== null && prevPosition.lng !== null) {
 				const bearing = calculateBearing(prevPosition.lat, prevPosition.lng, currentLat, currentLng);
 				bearing ? setRotation(bearing) : null;
 			}
@@ -151,8 +164,9 @@ function SelectedVehicleMarker() {
 	return (
 		<>
 			{selectedVehicle.vId !== 0 && historyReplay.isHistoryReplayMode === false && selectedVehicleMarker ? (
-				<Marker
+				<AnyMarker
 					position={[selectedVehicleMarker.gpsDtl.latLngDtl.lat, selectedVehicleMarker.gpsDtl.latLngDtl.lng]}
+					rotationAngle={normalizeAngle(selectedVehicleMarker.gpsDtl.angle) || rotation}
 					icon={
 						isCheckInAccount(Number(auth.userId))
 							? iconFactory(`/assets/images/map/vehicles/checkin.png`)
@@ -175,7 +189,7 @@ function SelectedVehicleMarker() {
 					<Popup>
 						<SelectedVehicleInfoWindow selectedVehicleMarker={selectedVehicleMarker} />
 					</Popup>
-				</Marker>
+				</AnyMarker>
 			) : selectedVehicle.vId !== 0 &&
 			  historyReplay.isHistoryReplayMode === true &&
 			  vehicleItnaryWithPath.patharry &&

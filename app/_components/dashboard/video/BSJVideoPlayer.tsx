@@ -1,11 +1,10 @@
 "use client";
 
-import { RootState } from "@/app/_globalRedux/store";
 import BlurBg from "@/public/assets/images/common/blurbg.jpg";
 import { PlayCircleOutlined } from "@ant-design/icons";
+import { Switch } from "antd";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
 
 interface BSJVideoPlayerProps {
   deviceId: string;
@@ -20,19 +19,9 @@ const BSJVideoPlayer: React.FC<BSJVideoPlayerProps> = ({
 }) => {
   const [playingChannels, setPlayingChannels] = useState<number[]>([]);
   const [videoUrls, setVideoUrls] = useState<{ [key: number]: string }>({});
+  const [showCH3, setShowCH3] = useState(false);
+  const [showCH4, setShowCH4] = useState(false);
 
-  // Get selected vehicle to determine number of channels
-  const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle,
-  );
-
-  // Determine if this vehicle should have 3 channels
-  const hasThreeChannels = [21945, 12445248, 21945].includes(
-    selectedVehicle.vId,
-  );
-
-  const hasFourChannels = [21945].includes(selectedVehicle.vId);
- 
   // BSJ Video URL configuration
   const baseUrl = "https://y.gpstracktech.com/#/videoapi/real";
   const wsConfig = {
@@ -70,6 +59,8 @@ const BSJVideoPlayer: React.FC<BSJVideoPlayerProps> = ({
     // Clear URLs when device changes
     setVideoUrls({});
     setPlayingChannels([]);
+    setShowCH3(false);
+    setShowCH4(false);
   }, [deviceId]);
 
 
@@ -88,8 +79,8 @@ const BSJVideoPlayer: React.FC<BSJVideoPlayerProps> = ({
 
   const getChannelsToDisplay = () => {
     const channels = [1, 2];
-    if (hasThreeChannels) channels.push(3);
-    if (hasFourChannels) channels.push(4);
+    if (showCH3) channels.push(3);
+    if (showCH4) channels.push(4);
     return channels;
   };
 
@@ -129,6 +120,28 @@ const BSJVideoPlayer: React.FC<BSJVideoPlayerProps> = ({
 
   return (
     <div className={className}>
+      <div className="flex items-center space-x-4 mb-3">
+        <div className="flex items-center space-x-2">
+          <span className="text-xs font-semibold text-slate-600">CH3</span>
+          <Switch
+            size="small"
+            checked={showCH3}
+            onChange={setShowCH3}
+            checkedChildren="ON"
+            unCheckedChildren="OFF"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-xs font-semibold text-slate-600">CH4</span>
+          <Switch
+            size="small"
+            checked={showCH4}
+            onChange={setShowCH4}
+            checkedChildren="ON"
+            unCheckedChildren="OFF"
+          />
+        </div>
+      </div>
       <div className="space-y-2">
         {getChannelsToDisplay().map((channel) => renderChannelVideo(channel))}
       </div>

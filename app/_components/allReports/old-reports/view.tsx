@@ -19,44 +19,49 @@ export const View = () => {
     }
   }, [userId]);
 
-  const allReports = [
+  type ReportItem = {
+    title: string;
+    url: string;
+  };
+
+  const rawReports: Array<ReportItem | null> = [
     Number(userId) === 85182 || Number(userId) === 85086
       ? {
           title: "Alumina Trip Report",
           url: `https://gtrac.in/newtracking/reports/poireport_vedanta.php?token=${groupId}&userid=${userId}&puserid=${parentUser}&extra=${extra}`,
         }
-      : {},
+      : null,
     Number(userId) === 85183 || Number(userId) === 85086
       ? {
           title: "FG Trip Report",
           url: `https://gtrac.in/newtracking/reports/vedanta_fg_bytrip.php?token=${groupId}&userid=${userId}&puserid=${parentUser}&extra=${extra}`,
         }
-      : {},
+      : null,
     Number(userId) === 85086 || Number(userId) === 85184
       ? {
           title: "Coal Trip Report",
           url: `https://gtrac.in/newtracking/reports/vedanta_coal.php?token=${groupId}&userid=${userId}&puserid=${parentUser}&extra=${extra}`,
         }
-      : {},
+      : null,
 
     Number(userId) === 86722
       ? {
           title: "Immobilize Report",
           url: `http://gtrac.in/newtracking/reports/Immobilize_report.php?token=${groupId}&userid=${userId}`,
         }
-      : {},
+      : null,
     Number(userId) === 85048
       ? {
           title: "All Vehicle Overspeed Report",
           url: `https://gtrac.in/voneweb/reports/overspeed_report.php?token=${groupId}&userid=${userId}&extra=${extra}`,
         }
-      : {},
+      : null,
     Number(userId) === 81707 || Number(userId) === 87197
       ? {
           title: "Fix Trip Report",
           url: `https://gtrac.in/newtracking/reports/poireportokaravasai.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
         }
-      : {},
+      : null,
     ...(Number(userId) === 81707 || Number(userId) === 87197
       ? [
           {
@@ -68,7 +73,7 @@ export const View = () => {
             url: `https://gtrac.in/newtracking/reports/okarahaltinggeo.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
           },
         ]
-      : [{}]),
+      : []),
 
     {
       title: "Current Month Report",
@@ -140,10 +145,14 @@ export const View = () => {
       title: "Diagnostic History",
       url: `https://gtrac.in/newtracking/reports/all_reports_of_vehicle.php?report=Diagnostic&token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
     },
-    {
-      title: "Temperature Report",
-      url: `https://gtrac.in/newtracking/reports/all_reports_of_vehicle.php?report=Journey&token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
-    },
+
+    Number(userId) !== 833877
+      ? {
+          title: "Temperature Report",
+          url: `https://gtrac.in/newtracking/reports/all_reports_of_vehicle.php?report=Journey&token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
+        }
+      : null,
+
     Number(userId) === 87318 || Number(parentUser) === 87318
       ? {
           title: "Movement Report",
@@ -188,7 +197,7 @@ export const View = () => {
           title: "POI Summary Report",
           url: `https://gtrac.in/newtracking/reports/poi_summery.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
         }
-      : {},
+      : null,
 
     {
       title: "Driver Behaviour Report",
@@ -207,25 +216,35 @@ export const View = () => {
           ? `https://gtrac.in/voneweb/reports/chk_all_veh_withKM.php?token=3384&userid=3356&extra=0&puserid=1`
           : `https://gtrac.in/newtracking/reports/chk_all_veh_withKM.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
     },
+    Number(userId) === 85380
+      ? {
+          title: "AC Idle Report (20 Days)",
+          url: `https://gtrac.in/newtracking/reports/ac_idle_last_20_days.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
+        }
+      : null,
     Number(userId) === 3356 || Number(userId) === 833193
       ? {
           title: "Fuel Report",
           url: `/dashboard/all-reports/fuel-report`,
         }
-      : {},
+      : null,
     Number(userId) === 833016
       ? {
           title: "All Vehicles Alcohol Report",
           url: `https://gtrac.in/newtracking/reports/alcohol_report.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
         }
-      : {},
+      : null,
     Number(userId) === 84712
       ? {
           title: "Last Unlocked Report",
           url: `https://gtrac.in/newtracking/reports/lock_unlock_report.php?report=Journey&token=56932&userid=84712&extra=0&puserid=1`,
         }
-      : {},
+      : null,
   ];
+
+  const allReports = rawReports.filter(
+    (report): report is ReportItem => Boolean(report),
+  );
 
   return (
     <div className="m-4 grid-cols-5 grid gap-6">

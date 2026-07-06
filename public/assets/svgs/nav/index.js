@@ -70,3 +70,9 @@ export * as PadUnlocked from "@/public/assets/svgs/nav/pad-unlock.svg";
 export * as PanicIcon from "@/public/assets/svgs/nav/incident.svg";
 export * as BreathAnalyzerIcon from "@/public/assets/svgs/nav/breath-analyzer.svg";
 export * as VehicleBox from "@/public/assets/svgs/nav/vehicle-box.svg";
+export * as BadgeIcon from "@/public/assets/svgs/nav/badge-icon.svg";
+export * as TruckBlackIcon from "@/public/assets/svgs/nav/pinhead_truck.svg";
+export * as DriverImage from "@/public/assets/svgs/nav/avatar-img.svg";
+export * as TruckImage from "@/public/assets/svgs/nav/truck-image.svg";
+export * as TrucKListIcon from "@/public/assets/svgs/nav/truck-list.svg"
+export * as DashcamOverview from "@/public/assets/svgs/nav/dashcam-overview.svg"

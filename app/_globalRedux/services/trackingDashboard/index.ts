@@ -64,12 +64,12 @@ export const trackingDashboard = createApi({
             status === "On Trip" &&
             (tripStatusBatch === "On Trip" || tripStatusBatch === "Off Trip")
           ) {
-            return `getListVehiclesmob?token=${token}&userid=${userId}&puserid=${pUserId}&status=${status}&trip_status_batch=`;
+            return `getListVehiclesmobFinal?token=${token}&userid=${userId}&puserid=${pUserId}&status=${status}&trip_status_batch=`;
           } else {
-            return `getListVehiclesmob?token=${token}&userid=${userId}&puserid=${pUserId}&status=${status}&trip_status_batch=${tripStatusBatch}`;
+            return `getListVehiclesmobFinal?token=${token}&userid=${userId}&puserid=${pUserId}&status=${status}&trip_status_batch=${tripStatusBatch}`;
           }
         } else {
-          return `getListVehiclesmob?token=${token}&userid=${userId}&puserid=${pUserId}&mode=${mode}`;
+          return `getListVehiclesmobFinal?token=${token}&userid=${userId}&puserid=${pUserId}&mode=${mode}`;
         }
       },
       keepUnusedDataFor: 0,

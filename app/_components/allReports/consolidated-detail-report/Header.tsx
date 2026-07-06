@@ -1,23 +1,18 @@
 import React from 'react';
 
-import { Button, DatePicker } from 'antd';
-import { Dayjs } from 'dayjs';
+import { Button } from 'antd';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/app/_globalRedux/store';
 import CustomDatePicker from '../../common/datePicker';
 import AllVehiclesSelect from '../../common/AllVehiclesSelect';
 
 export default function Header({
-	date,
-	setDate,
 	onSubmit,
 	dateRange,
 	setDateRange,
 	selectedVehicleOption,
 	setSelectedVehicleOption,
 }: {
-	date: Dayjs;
-	setDate: React.Dispatch<React.SetStateAction<Dayjs>>;
 	onSubmit: () => void;
 	dateRange: Date[];
 	setDateRange: React.Dispatch<React.SetStateAction<Date[]>>;
@@ -41,11 +36,7 @@ export default function Header({
 				{Number(userId) === 83171 ? (
 					<AllVehiclesSelect selectedVehicleOption={selectedVehicleOption} setSelectedVehicleOption={setSelectedVehicleOption} allowClear={true} />
 				) : null}
-				{Number(userId) === 85380 || Number(userId) === 83171 ? (
-					<CustomDatePicker dateRange={dateRange} setDateRange={setDateRange} datePickerStyles='h-[32px]  max-h-[32px]' />
-				) : (
-					<DatePicker format='Do MMM YYYY' value={date} width='200px' onChange={(e) => setDate(e)} />
-				)}
+				<CustomDatePicker dateRange={dateRange} setDateRange={setDateRange} datePickerStyles='h-[32px]  max-h-[32px]' />
 				<Button type='primary' onClick={() => onSubmit()}>
 					Submit
 				</Button>

@@ -15,6 +15,11 @@ import { Card, Tooltip } from "antd";
 import moment from "moment";
 import Image from "next/image";
 import { Dispatch, SetStateAction, useMemo } from "react";
+import {
+  setCenterOfMap,
+  setOpenStoppageIndex,
+  setZoomNo,
+} from "@/app/_globalRedux/dashboard/mapSlice";
 import { useDispatch, useSelector } from "react-redux";
 
 export const VehicleHistoryCard = ({
@@ -41,6 +46,31 @@ export const VehicleHistoryCard = ({
   );
 
   const dispatch = useDispatch();
+
+  const openStoppageOnMap = (lat?: number, lng?: number) => {
+    if (lat && lng) {
+      const stoppageList = (vehicleItnaryWithPath.diagnosticData || [])
+        .filter((v: any) => v.mode === "Idle")
+        .reverse()
+        .slice(0, 200);
+
+      const matchIndex = stoppageList.findIndex((v: any) => {
+        const sameTime = v.fromTime === (vehicleData as any).fromTime;
+        const latA = Number(v.fromLat || v.lat || 0);
+        const lngA = Number(v.fromLng || v.lng || 0);
+        const sameCoords =
+          Math.abs(latA - Number(lat)) < 0.0005 &&
+          Math.abs(lngA - Number(lng)) < 0.0005;
+        return sameTime || sameCoords;
+      });
+
+      dispatch(setCenterOfMap({ lat, lng }));
+      dispatch(setZoomNo(14));
+      dispatch(
+        setOpenStoppageIndex(matchIndex >= 0 ? matchIndex : stoppagesCount),
+      );
+    }
+  };
 
   const isCardActive = useMemo(() => {
     const currentIndex = historyReplay.currentPathArrayIndex;
@@ -105,6 +135,15 @@ export const VehicleHistoryCard = ({
             ? "border-custom-pink"
             : ""
         } shadow-xl shadow-s-light rounded-md`}
+        onClick={() => {
+          if (vehicleData.mode === "Idle") {
+            const lat =
+              (vehicleData as any).fromLat || (vehicleData as any).toLat || 0;
+            const lng =
+              (vehicleData as any).fromLng || (vehicleData as any).toLng || 0;
+            openStoppageOnMap(lat, lng);
+          }
+        }}
       >
         <Card className="px-2">
           <div className="flex gap-3">

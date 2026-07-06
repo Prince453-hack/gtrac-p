@@ -1,7 +1,7 @@
 'use client';
 
 import { useMap } from '@vis.gl/react-google-maps';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/app/_globalRedux/store';
 import paths from '../../../_assets/stoppagesPaths';
@@ -14,6 +14,10 @@ export const StoppageMarkersImperative = () => {
 	const selectedVehicleHistoryTab = useSelector((state: RootState) => state.selectedVehicle.selectedVehicleHistoryTab);
 	const historyReplay = useSelector((state: RootState) => state.historyReplay);
 	const selectedVehicle = useSelector((state: RootState) => state.selectedVehicle);
+	const openStoppageIndex = useSelector((state: RootState) => state.map.openStoppageIndex);
+
+	const markersRef = useRef<any[]>([]);
+	const infoWindowRef = useRef<any | null>(null);
 
 	useEffect(() => {
 		if (!map) return;
@@ -71,23 +75,56 @@ export const StoppageMarkersImperative = () => {
 
 					marker.addListener('click', () => {
 						map.setCenter({ lat: stoppage.fromLat, lng: stoppage.fromLng });
-						infoWindow.setContent(generateInfoWindowContent(stoppage));
-						infoWindow.open(map, marker);
+						if (infoWindow) {
+							infoWindow.setContent(generateInfoWindowContent(stoppage));
+							infoWindow.open(map, marker);
+						}
 					});
 
 					return marker;
 				});
 
 				infoWindow = new google.maps.InfoWindow();
+
+				markersRef.current = markers;
+				infoWindowRef.current = infoWindow;
 			}, 2000);
 
 			return () => {
 				clearTimeout(timeoutId);
 				markers.forEach((marker: any) => marker.setMap(null));
 				if (infoWindow) infoWindow.close();
+				markersRef.current = [];
+				infoWindowRef.current = null;
 			};
 		}
-	}, [map, vehicleItnaryWithPath, selectedVehicleHistoryTab, historyReplay, selectedVehicle]);
+	}, [map, vehicleItnaryWithPath, selectedVehicleHistoryTab, historyReplay, selectedVehicle, userId]);
+
+	// Effect to open/close infoWindow based on openStoppageIndex
+	useEffect(() => {
+		if (!map) return;
+		const markers = markersRef.current;
+		const infoWindow = infoWindowRef.current;
+
+		if (!infoWindow || !markers || markers.length === 0) return;
+
+		if (openStoppageIndex >= 0 && openStoppageIndex < markers.length) {
+			const marker = markers[openStoppageIndex];
+			const stoppage = (vehicleItnaryWithPath.diagnosticData || [])
+				.filter((item: any) => item.mode === 'Idle')
+				.reverse()
+				.slice(0, 200)[openStoppageIndex];
+
+			if (marker && stoppage) {
+				map.setCenter({ lat: stoppage.fromLat, lng: stoppage.fromLng });
+				infoWindow.setContent(generateInfoWindowContent(stoppage));
+				infoWindow.open(map, marker);
+			}
+		} else {
+			// close any open infoWindow
+			infoWindow.close();
+		}
+	}, [openStoppageIndex, map, vehicleItnaryWithPath]);
 
 	return null;
 };

@@ -2,23 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const PASSENGER_COUNT_API =
-  "https://f858-49-205-176-68.ngrok-free.app/api/passenger-count";
+const REMOTE_API = "http://203.115.101.58:3000/api/snapshots";
 
 export async function GET(request: NextRequest) {
   const startTime = request.nextUrl.searchParams.get("startTime");
   const endTime = request.nextUrl.searchParams.get("endTime");
 
-  if (!startTime || !endTime) {
-    return NextResponse.json(
-      { message: "startTime and endTime are required" },
-      { status: 400 },
-    );
-  }
-
-  const remoteUrl = new URL(PASSENGER_COUNT_API);
-  remoteUrl.searchParams.set("startTime", startTime);
-  remoteUrl.searchParams.set("endTime", endTime);
+  const remoteUrl = new URL(REMOTE_API);
+  if (startTime) remoteUrl.searchParams.set("startTime", startTime);
+  if (endTime) remoteUrl.searchParams.set("endTime", endTime);
 
   try {
     const response = await fetch(remoteUrl.toString(), {
@@ -31,18 +23,14 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-
       return NextResponse.json(
-        {
-          message: errorText || "Failed to fetch passenger count data",
-        },
-        { status: response.status },
+        { message: errorText || "Failed to fetch snapshots" },
+        { status: response.status }
       );
     }
 
-    const payload = await response.json();
-
-    return NextResponse.json(payload, {
+    const data = await response.json();
+    return NextResponse.json(data, {
       status: 200,
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -54,9 +42,9 @@ export async function GET(request: NextRequest) {
         message:
           error instanceof Error
             ? error.message
-            : "Failed to fetch passenger count data",
+            : "Failed to fetch snapshots",
       },
-      { status: 502 },
+      { status: 502 }
     );
   }
 }

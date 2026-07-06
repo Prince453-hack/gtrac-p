@@ -28,11 +28,11 @@ const DiagnosticCardList = ({
   const { reportsModalState } = useContext(VehicleDetailsContext);
   const { selectedView } = reportsModalState;
   const vehicleItnaryWithPath = useSelector(
-    (state: RootState) => state.vehicleItnaryWithPath
+    (state: RootState) => state.vehicleItnaryWithPath,
   );
   const { openStoppageIndex } = useSelector((state: RootState) => state.map);
   const { type: vehicleListType } = useSelector(
-    (state: RootState) => state.isVehicleStatusOrTripStatusActive
+    (state: RootState) => state.isVehicleStatusOrTripStatusActive,
   );
   const { extra } = useSelector((state: RootState) => state.auth);
   const isGetPathWithDateDiagnosticLoading = useSelector((state: RootState) =>
@@ -40,15 +40,15 @@ const DiagnosticCardList = ({
       (query) =>
         query &&
         query.endpointName === "getpathwithDateDaignostic" &&
-        query.status === "pending"
-    )
+        query.status === "pending",
+    ),
   );
   const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle
+    (state: RootState) => state.selectedVehicle,
   );
   const selectedRange = useSelector((state: RootState) => state.customRange);
   const isApmTotalKmLoading = useSelector(
-    (state: RootState) => state.isApmTotalKmmLoading
+    (state: RootState) => state.isApmTotalKmmLoading,
   );
 
   const { userId } = useSelector((state: RootState) => state.auth);
@@ -71,7 +71,7 @@ const DiagnosticCardList = ({
       Array.isArray((obdDiagnosticResponse as any).data)
         ? (obdDiagnosticResponse as any).data
         : vehicleItnaryWithPath.diagnosticData) || [],
-    [obdDiagnosticResponse, vehicleItnaryWithPath.diagnosticData]
+    [obdDiagnosticResponse, vehicleItnaryWithPath.diagnosticData],
   );
 
   const openStoppage = ({
@@ -92,7 +92,7 @@ const DiagnosticCardList = ({
   const cardView = useMemo(() => {
     let stoppagesCount = (diagnosticList as any[]).reduce(
       (acc: number, curr: any) => (curr?.mode === "Idle" ? acc + 1 : acc),
-      1
+      1,
     );
     return (
       <div
@@ -100,13 +100,13 @@ const DiagnosticCardList = ({
           selectedVehicle.gpsDtl.fuel && selectedVehicle.gpsDtl.fuel <= 100
             ? "h-[calc(100vh-450px)]"
             : view === "VehicleAllocationReport"
-            ? "h-[calc(100vh-200px)]"
-            : reportsModalState.isReportsExpanded
-            ? "h-[calc(100vh-300px)]"
-            : vehicleListType === "trip" ||
-              vehicleListType === "vehicle-allocation-trip"
-            ? "h-[calc(100vh-440px)]"
-            : "h-[calc(100vh-480px)]"
+              ? "h-[calc(100vh-200px)]"
+              : reportsModalState.isReportsExpanded
+                ? "h-[calc(100vh-300px)]"
+                : vehicleListType === "trip" ||
+                    vehicleListType === "vehicle-allocation-trip"
+                  ? "h-[calc(100vh-440px)]"
+                  : "h-[calc(100vh-480px)]"
         } w-full overflow-x-scroll scrollbar-thumb-thumb-green scrollbar-w-2 scrollbar-thumb-rounded-md scrollbar flex flex-col gap-2.5 `}
       >
         {isGetPathWithDateDiagnosticLoading ||
@@ -281,16 +281,16 @@ const DiagnosticCardList = ({
                           Fuel Consumed :{" "}
                           {(() => {
                             const fuelStart = Number(
-                              vehicle.engineTotalFuelUsedstrt
+                              vehicle.engineTotalFuelUsedstrt,
                             );
 
                             const fuelEnd = Number(
-                              vehicle.engineTotalFuelUsedend
+                              vehicle.engineTotalFuelUsedend,
                             );
                             const fuelConsumed = Math.abs(fuelEnd - fuelStart);
                             const distance =
                               parseFloat(
-                                vehicle.totalDistance.replace(/[^\d.]/g, "")
+                                vehicle.totalDistance.replace(/[^\d.]/g, ""),
                               ) || 0;
                             const mileage =
                               fuelConsumed > 0 ? distance / fuelConsumed : 0;
@@ -303,15 +303,15 @@ const DiagnosticCardList = ({
                           Mileage :{" "}
                           {(() => {
                             const fuelStart = Number(
-                              vehicle.engineTotalFuelUsedstrt
+                              vehicle.engineTotalFuelUsedstrt,
                             );
                             const fuelEnd = Number(
-                              vehicle.engineTotalFuelUsedend
+                              vehicle.engineTotalFuelUsedend,
                             );
                             const fuelConsumed = Math.abs(fuelEnd - fuelStart);
                             const distance =
                               parseFloat(
-                                vehicle.totalDistance.replace(/[^\d.]/g, "")
+                                vehicle.totalDistance.replace(/[^\d.]/g, ""),
                               ) || 0;
                             const mileage =
                               fuelConsumed > 0 ? distance / fuelConsumed : 0;

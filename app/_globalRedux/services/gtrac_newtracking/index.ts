@@ -105,7 +105,7 @@ export const gtracNewtracking = createApi({
       }
     >({
       query: ({ token, userId, puserId }) => ({
-        url: `temperature_alert_next.php?action=panicalert&token=${token}&userid=${userId}&puserid=${puserId}`,
+        url: `https://gtrac.in/newtracking/temperature_alert_next.php?action=panicalert&token=${token}&userid=${userId}&puserid=${puserId}`,
       }),
       providesTags: ["Panic-Alert-Popups"],
     }),
@@ -148,7 +148,7 @@ export const gtracNewtracking = createApi({
       }
     >({
       query: ({ token, userId, puserId, body }) => ({
-        url: `temperature_alert_next.php?token=${token}&userid=${userId}&puserid=${puserId}&action=updatepanicalert&comment=${body.comment}&UserName=${body.username}&veh_no=${body.veh_no}`,
+        url: `https://gtrac.in/newtracking/temperature_alert_next.php?token=${token}&userid=${userId}&puserid=${puserId}&action=updatepanicalert&comment=${body.comment}&UserName=${body.username}&veh_no=${body.veh_no}`,
       }),
     }),
 

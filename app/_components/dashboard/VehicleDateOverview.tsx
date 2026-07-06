@@ -136,27 +136,27 @@ export const VehicleDateOverview = ({
   } {
     const readings: Point[] = Array.isArray(response.fuelarray)
       ? response.fuelarray
-          .filter(
-            (p) =>
-              p.tel_fuel !== 0 &&
-              p.speed >= 2 &&
-              p.speed <= 5 &&
-              p.tel_fuel !== undefined &&
-              p.tel_fuel !== null,
-          )
-          .map((p) => ({
-            odometer: p.tel_odometer ? p.tel_odometer.toString() : "0",
-            fuel: p.tel_fuel ? p.tel_fuel : 0,
-            adblue: 0,
-            time: p.datetime,
-            gps_latitude: p.lat,
-            gps_longitude: p.lng,
-            location: p.location,
-            event: null,
-            amountFilled: null,
-            amountStolen: null,
-            distanceSinceLastFill: null,
-          }))
+        .filter(
+          (p) =>
+            p.tel_fuel !== 0 &&
+            p.speed >= 2 &&
+            p.speed <= 5 &&
+            p.tel_fuel !== undefined &&
+            p.tel_fuel !== null,
+        )
+        .map((p) => ({
+          odometer: p.tel_odometer ? p.tel_odometer.toString() : "0",
+          fuel: p.tel_fuel ? p.tel_fuel : 0,
+          adblue: 0,
+          time: p.datetime,
+          gps_latitude: p.lat,
+          gps_longitude: p.lng,
+          location: p.location,
+          event: null,
+          amountFilled: null,
+          amountStolen: null,
+          distanceSinceLastFill: null,
+        }))
       : [];
 
     if (readings.length < 2) {
@@ -234,7 +234,7 @@ export const VehicleDateOverview = ({
       Number(extra) === 0 || isNaN(Number(extra))
         ? Number(distance.split(" ")[0])
         : Number(distance.split(" ")[0]) +
-          (Number(distance.split(" ")[0]) * Number(extra)) / 100;
+        (Number(distance.split(" ")[0]) * Number(extra)) / 100;
 
     if (fuelConsumed <= 0 || totalDistValue <= 0) {
       return { fuelConsumed, mileage: 0 };
@@ -251,9 +251,9 @@ export const VehicleDateOverview = ({
         <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
           <h3 className=" relative bottom-1.5">Running Time</h3>
           {isGetPathWithDateDiagnosticLoading ||
-          isApmTotalKmLoading ||
-          isFuelDataLoading ||
-          isObdLoading ? (
+            isApmTotalKmLoading ||
+            isFuelDataLoading ||
+            isObdLoading ? (
             <Skeleton.Button
               active={true}
               size="small"
@@ -268,9 +268,9 @@ export const VehicleDateOverview = ({
         <div className="flex items-center justify-center flex-col border w-full h-24">
           <h3 className=" relative bottom-1">Total Distance</h3>
           {isGetPathWithDateDiagnosticLoading ||
-          isApmTotalKmLoading ||
-          isFuelDataLoading ||
-          isObdLoading ? (
+            isApmTotalKmLoading ||
+            isFuelDataLoading ||
+            isObdLoading ? (
             <Skeleton.Button
               active={true}
               size="small"
@@ -281,23 +281,23 @@ export const VehicleDateOverview = ({
               {Number(extra) === 0 || isNaN(Number(extra))
                 ? Number(distance.split(" ")[0])
                 : (
-                    Number(distance.split(" ")[0]) +
-                    (Number(distance.split(" ")[0]) * Number(extra)) / 100
-                  ).toFixed(0)}{" "}
+                  Number(distance.split(" ")[0]) +
+                  (Number(distance.split(" ")[0]) * Number(extra)) / 100
+                ).toFixed(0)}{" "}
               KM
             </p>
           )}
         </div>
 
         {selectedVehicle.gpsDtl.fuel &&
-        selectedVehicle.gpsDtl.fuel <= 100 &&
-        selectedVehicle.gpsDtl.port !== 31500 ? (
+          selectedVehicle.gpsDtl.fuel <= 100 &&
+          selectedVehicle.gpsDtl.port !== 31500 ? (
           <div className="flex items-center justify-center flex-col border w-full h-24">
             <h3 className=" relative bottom-1">Mileage</h3>
             {isGetPathWithDateDiagnosticLoading ||
-            isApmTotalKmLoading ||
-            isFuelDataLoading ||
-            isObdLoading ? (
+              isApmTotalKmLoading ||
+              isFuelDataLoading ||
+              isObdLoading ? (
               <Skeleton.Button
                 active={true}
                 size="small"
@@ -326,9 +326,9 @@ export const VehicleDateOverview = ({
           <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
             <h3 className=" relative bottom-1">Stopped Time</h3>
             {isGetPathWithDateDiagnosticLoading ||
-            isApmTotalKmLoading ||
-            isFuelDataLoading ||
-            isObdLoading ? (
+              isApmTotalKmLoading ||
+              isFuelDataLoading ||
+              isObdLoading ? (
               <Skeleton.Button
                 active={true}
                 size="small"
@@ -343,15 +343,15 @@ export const VehicleDateOverview = ({
         )}
 
         {selectedVehicle.gpsDtl.fuel &&
-        selectedVehicle.gpsDtl.fuel <= 100 &&
-        selectedVehicle.gpsDtl.port !== 31500 ? (
+          selectedVehicle.gpsDtl.fuel <= 100 &&
+          selectedVehicle.gpsDtl.port !== 31500 ? (
           <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
             <h3 className=" relative bottom-1">Fuel Consumed</h3>
             {isGetPathWithDateDiagnosticLoading ||
-            isApmTotalKmLoading ||
-            isFuelDataLoading ||
-            isDiagnosticLoading ||
-            isObdLoading ? (
+              isApmTotalKmLoading ||
+              isFuelDataLoading ||
+              isDiagnosticLoading ||
+              isObdLoading ? (
               <Skeleton.Button
                 active={true}
                 size="small"

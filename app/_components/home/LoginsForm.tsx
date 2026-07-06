@@ -7,6 +7,7 @@ import { Dispatch, SetStateAction, useState } from "react";
 import { useDispatch } from "react-redux";
 import { isSnowmanAccount } from "@/app/helpers/isSnowmanAccount";
 import axios from "axios";
+import { EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 
 export const LoginsForm = ({
   setForgetPasswordPage,
@@ -20,9 +21,15 @@ export const LoginsForm = ({
   const [otp, setOtp] = useState("");
   const [formOtp, setFormOtp] = useState("");
   const [getOtpRes, setGetOtpRes] = useState<any>();
+  const [showPassword, setShowPassword] = useState(false);
 
   const authenticateUser = async (formData: FormData) => {
     setLoading(true);
+    const username = (formData.get("username") as string || "").trim();
+    const password = (formData.get("password") as string || "").trim();
+    formData.set("username", username);
+    formData.set("password", password);
+
     const res = await authenticate("", formData);
 
     let data;
@@ -188,18 +195,20 @@ export const LoginsForm = ({
 
   const getOtp = async (formData: FormData) => {
     setLoading(true);
+    const mobileNumber = (formData.get("mobileNumber") as string || "").trim().replace(/\s+/g, "");
+    formData.set("mobileNumber", mobileNumber);
     try {
       const res = await axios.post(
         `https://gtrac.in:8089/tracking/sendLoginSMSotp`,
         {
-          mobileNum: formData.get("mobileNumber"),
+          mobileNum: mobileNumber,
         },
       );
       if (res.status === 201 || res.status === 200) {
         const data = res.data;
         formData.set("mobileNumber", "");
         formData.set("otp", "");
-        setOtp(data.otp.toString());
+        setOtp(data.otp.toString().trim());
         setGetOtpRes(data);
         setLoading(false);
       } else {
@@ -214,7 +223,9 @@ export const LoginsForm = ({
   };
 
   const authenticateWithNumber = async (formData: FormData) => {
-    if (formOtp !== otp) {
+    const trimmedFormOtp = formOtp.trim();
+    const trimmedOtp = otp.trim();
+    if (trimmedFormOtp !== trimmedOtp) {
       setErrorMessage("Invalid OTP. Please try again.");
       return;
     }
@@ -334,7 +345,7 @@ export const LoginsForm = ({
                 name="otp"
                 id="otp"
                 value={formOtp}
-                onChange={(e) => setFormOtp(e.target.value)}
+                onChange={(e) => setFormOtp(e.target.value.trim())}
                 className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg block w-full p-2.5"
                 placeholder="Enter OTP"
                 required={true}
@@ -382,14 +393,27 @@ export const LoginsForm = ({
                 >
                   Password
                 </label>
-                <input
-                  type="password"
-                  name="password"
-                  id="password"
-                  placeholder="••••••••"
-                  className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg block w-full p-2.5"
-                  required={true}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    id="password"
+                    placeholder="••••••••"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-md block w-full p-2.5 pr-10"
+                    required={true}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? (
+                      <EyeInvisibleOutlined className="text-lg" />
+                    ) : (
+                      <EyeOutlined className="text-lg" />
+                    )}
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -400,15 +424,17 @@ export const LoginsForm = ({
           </div>
           <Button
             htmlType="submit"
-            style={{
-              background: "rgb(218,94,26)",
-              color: "white",
-              width: "100%",
-              borderRadius: "8px",
-            }}
             type="primary"
             size="large"
             loading={loading}
+            className="w-full rounded-lg text-white font-semibold transition-all duration-300 transform hover:scale-[1.01] hover:brightness-105 active:scale-[0.98] hover:shadow-[0_4px_15px_rgba(218,94,26,0.4)] border-none flex items-center justify-center"
+            style={{
+              background: "linear-gradient(135deg, rgb(238, 114, 46) 0%, rgb(218, 94, 26) 100%)",
+              color: "white",
+              width: "100%",
+              borderRadius: "8px",
+              height: "44px",
+            }}
           >
             Sign in
           </Button>

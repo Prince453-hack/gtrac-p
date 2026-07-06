@@ -1070,15 +1070,15 @@ const PoiDetailsModal = ({
   const latLng =
     poiData.points && poiData.points.length > 0
       ? poiData.points.map((p) => ({
-          lat: p.gps_latitude.toFixed(6),
-          lng: p.gps_longitude.toFixed(6),
-        }))
+        lat: p.gps_latitude.toFixed(6),
+        lng: p.gps_longitude.toFixed(6),
+      }))
       : [
-          {
-            lat: poiData.gps_latitude.toFixed(6),
-            lng: poiData.gps_longitude.toFixed(6),
-          },
-        ];
+        {
+          lat: poiData.gps_latitude.toFixed(6),
+          lng: poiData.gps_longitude.toFixed(6),
+        },
+      ];
 
   return (
     <Modal

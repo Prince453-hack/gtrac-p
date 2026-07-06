@@ -13,7 +13,7 @@ import { ExpandReportsModal } from "./ExpandReportsModal";
 import { ToggleVehicleStatusAndTripStatus } from "./ToggleVehicleStatusAndTripStatus";
 import { TripForm } from "./trip/TripForm";
 import { useUser } from "@auth0/nextjs-auth0/client";
-import { Spin } from "antd";
+import { Spin, Modal } from "antd";
 import React from "react";
 import { CheckInAccountDetails } from "./CheckInAccountDetails";
 import { isCheckInAccount } from "@/app/helpers/isCheckInAccount";
@@ -49,6 +49,19 @@ export const View = () => {
   const { isMapActive } = useSelector((state: RootState) => state.map);
 
   const { isLoading } = useUser();
+
+  const [showGpsDetailsModal, setShowGpsDetailsModal] = useState(false);
+
+  useEffect(() => {
+    if (userId) {
+      const storageKey = `gps_details_popup_shown_${userId}`;
+      const hasBeenShown = localStorage.getItem(storageKey);
+
+      if (!hasBeenShown) {
+        setShowGpsDetailsModal(true);
+      }
+    }
+  }, [userId]);
 
   const data = useSelector((state: RootState) => {
     const getAlertsPopup = Object.values(state["react-api"].queries).find(
@@ -121,6 +134,36 @@ export const View = () => {
           <ToggleVehicleDetailsAndNearbyVehicles
             isGetNearbyVehiclesActive={isGetNearbyVehiclesActive}
           />
+          <Modal
+            open={showGpsDetailsModal}
+            onCancel={() => {
+              setShowGpsDetailsModal(false);
+              if (userId) {
+                localStorage.setItem(`gps_details_popup_shown_${userId}`, "true");
+              }
+            }}
+            footer={null}
+            width={680}
+            centered
+            styles={{
+              body: {
+                padding: 0,
+                overflow: 'hidden',
+                borderRadius: '8px',
+              }
+            }}
+          >
+            <img
+              src="/assets/images/gps-details.png"
+              alt="GPS Details"
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+              }}
+              draggable={false}
+            />
+          </Modal>
         </>
       )}
     </div>

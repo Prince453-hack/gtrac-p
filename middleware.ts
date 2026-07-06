@@ -9,7 +9,16 @@ export async function middleware(request: NextRequest) {
   const currentSession = currentSessionCookie
     ? JSON.parse(currentSessionCookie.value)
     : null;
-  const auth0Session = await getSession(request, response);
+  let auth0Session = null;
+
+  try {
+    auth0Session = await getSession(request, response);
+  } catch (error) {
+    console.warn("[middleware] auth0 session lookup failed", {
+      url: request.url,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const isDashboardPath = request.nextUrl.pathname.startsWith("/dashboard");
   const isChamberDashboardPath =
@@ -97,5 +106,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|.*\\.png$).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|assets|uploads|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.mp4$|favicon\\.ico$).*)"],
 };

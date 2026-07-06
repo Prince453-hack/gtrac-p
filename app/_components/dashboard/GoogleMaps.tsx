@@ -108,6 +108,7 @@ export const GoogleMaps = () => {
         <APIProvider
           apiKey={googleMapKey}
           libraries={googleLibraries}
+          version="3.64"
           onLoad={() => {
             dispatch(setIsMapNotLoading(true));
           }}

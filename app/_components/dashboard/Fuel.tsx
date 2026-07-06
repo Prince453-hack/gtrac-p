@@ -26,10 +26,12 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
     subDays(setHours(setMinutes(new Date(), 0), 0), 7),
     new Date(),
   ]);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
   const [getRawData, { data: rawData, isLoading, error }] =
     useLazyGetRawFuelWithDateQuery();
 
-  // New fuel tracking API call - only for user 833193
+  const isLitersFuelUser = [833193, 833916].includes(Number(userId));
+
   const { data: fuelTrackingData, isLoading: isFuelTrackingLoading } =
     useGetAllFuelDataGraphQuery(
       {
@@ -39,8 +41,8 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
         userid: Number(userId),
       },
       {
-        skip: !isModalOpen || !data.vId || !userId || Number(userId) !== 833193,
-      }
+        skip: !isModalOpen || !data.vId || !userId || Number(userId) === 833193,
+      },
     );
 
   const isGetRawWithDataWithoutLocationLoading = useSelector(
@@ -49,13 +51,14 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
         (query) =>
           query &&
           query.endpointName === "getRawFuelWithDate" &&
-          query.status === "pending"
-      )
+          query.status === "pending",
+      ),
   );
 
   const handleFetchFuelAdblueAlerts = () => {
-    // Only call raw fuel API for users other than 833193
-    if (Number(userId) !== 833193) {
+    if (Number(userId) === 833193) {
+      setFetchTrigger((prev) => prev + 1);
+    } else {
       getRawData({
         userId: Number(userId),
         vehId: data.vId,
@@ -71,15 +74,24 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
       dispatch(setSelectedVehicleCustomRangeSelected("Last 7 Days"));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isModalOpen]
+    [isModalOpen],
   );
 
   return (
     <>
       {data.gpsDtl.fuel &&
-      data.gpsDtl.fuel <= 100 &&
+      (isLitersFuelUser || data.gpsDtl.fuel <= 100) &&
       data.gpsDtl.port !== 31500 ? (
-        <Tooltip title="Fuel Percentage" mouseEnterDelay={1}>
+        <Tooltip
+          title={
+            Number(userId) === 833916
+              ? "Fuel Capacity"
+              : isLitersFuelUser
+                ? "Fuel (Liters)"
+                : "Fuel Percentage"
+          }
+          mouseEnterDelay={1}
+        >
           <div
             className="flex items-center gap-2 border border-neutral-200 rounded-full px-2 py-1"
             onClick={(e) => {
@@ -97,10 +109,19 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
             </div>
             <div>
               <p className="font-semibold text-xs text-neutral-600">
-                {Number(userId) === 833193
-                  ? data.gpsDtl.fuel.toFixed(2)
-                  : data.gpsDtl.fuel.toFixed(0)}
-                {Number(userId) === 833193 ? "L" : "%"}
+                {Number(userId) === 833916
+                  ? (() => {
+                      const pct = data.gpsDtl.fuel;
+                      const capacity = data.vehicleFuelCapacity;
+                      if (capacity && capacity > 0) {
+                        const liters = (pct / 100) * capacity;
+                        return `${liters.toFixed(0)} L`;
+                      }
+                      return `${pct.toFixed(0)}%`;
+                    })()
+                  : isLitersFuelUser
+                    ? `${data.gpsDtl.fuel.toFixed(2)}L`
+                    : `${data.gpsDtl.fuel.toFixed(0)}%`}
               </p>
             </div>
           </div>
@@ -156,6 +177,7 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
             error={error}
             startDate={customDateRange[0]}
             endDate={customDateRange[1]}
+            fetchTrigger={fetchTrigger}
           />
         </div>
       </Modal>

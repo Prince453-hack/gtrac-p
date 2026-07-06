@@ -79,6 +79,14 @@ const reports = ({
           title: `Client Request View`,
           url: `https://gtrac.in/newtracking/clientservice/client_request_view.php?token=${groupId}&userid=${userId}&extra=${extra}`,
         },
+        ...(String(userId) === "833916"
+          ? [
+              {
+                title: `Trip Overview`,
+                url: `/dashboard/trip-overview`,
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -264,6 +272,17 @@ const reports = ({
           url: `https://gtrac.in/newtracking/reports/consolidate.php?token=${groupId}&userid=${userId}&extra=${extra}`,
         },
       ], 
+    },
+    {
+      userId: 833916,
+      groupId: 0,
+      parentUser: 833916,
+      reports: [
+        {
+          title: `Trip Overview`,
+          url: `/dashboard/trip-overview`,
+        },
+      ],
     },
   ];
 };

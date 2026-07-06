@@ -40,27 +40,70 @@ import PoiMarkersImperative from "./PoiMarkers";
 import { StartAndEndPointMarker } from "./StartAndEndPointMarker";
 import { StoppageMarkersImperative } from "./StoppageMarkers";
 
-const getMarkerPosition = (marker: any, auth: any) => {
-  if (auth.accessLabel === 6 && getLatestGPSTime(marker) === "ELOCK") {
-    const elockLat = marker.ELOCKInfo?.lat;
-    const elockLng = marker.ELOCKInfo?.lng;
+const getPreferredInfo = (original: any) => {
+  if (!original) return null;
+  const gpsInfo = original.GPSInfo;
+  const elockInfo = original.ELOCKInfo;
 
-    if (elockLat && elockLng && elockLat !== 0 && elockLng !== 0) {
+  if (!gpsInfo && !elockInfo) return null;
+  if (!gpsInfo) return elockInfo;
+  if (!elockInfo) return gpsInfo;
+
+  const hasA = (reg?: string) => {
+    if (!reg) return false;
+    const trimmed = reg.trim();
+    return trimmed.endsWith(" A") || trimmed.endsWith("A");
+  };
+
+  const isGpsA = hasA(gpsInfo.vehReg);
+  const isElockA = hasA(elockInfo.vehReg);
+
+  let infoA = null;
+  let infoNonA = null;
+
+  if (isGpsA && !isElockA) {
+    infoA = gpsInfo;
+    infoNonA = elockInfo;
+  } else if (!isGpsA && isElockA) {
+    infoA = elockInfo;
+    infoNonA = gpsInfo;
+  }
+
+  if (!infoNonA || !infoA) {
+    const gpsTime = gpsInfo.gpstime ? new Date(gpsInfo.gpstime).getTime() : 0;
+    const elockTime = elockInfo.gpstime ? new Date(elockInfo.gpstime).getTime() : 0;
+    return gpsTime >= elockTime ? gpsInfo : elockInfo;
+  }
+
+  const nonAWorking = infoNonA.mode !== "NOT WORKING";
+  const aWorking = infoA.mode !== "NOT WORKING";
+
+  if (nonAWorking) {
+    return infoNonA;
+  } else if (aWorking) {
+    return infoA;
+  } else {
+    return infoNonA;
+  }
+};
+
+const getMarkerPosition = (marker: any, auth?: any) => {
+  const preferredInfo = getPreferredInfo(marker);
+  if (preferredInfo) {
+    const lat = preferredInfo.lat;
+    const lng = preferredInfo.lng || preferredInfo.lon;
+    if (lat && lng && Number(lat) !== 0 && Number(lng) !== 0) {
       return {
-        lat: elockLat,
-        lng: elockLng,
+        lat: Number(lat),
+        lng: Number(lng),
       };
     }
-    return {
-      lat: marker.gpsDtl.latLngDtl.lat,
-      lng: marker.gpsDtl.latLngDtl.lng,
-    };
-  } else {
-    return {
-      lat: marker.gpsDtl.latLngDtl.lat,
-      lng: marker.gpsDtl.latLngDtl.lng,
-    };
   }
+
+  return {
+    lat: Number(marker.gpsDtl.latLngDtl.lat) || 0,
+    lng: Number(marker.gpsDtl.latLngDtl.lng) || 0,
+  };
 };
 
 export const CustomGoogleMapInstance = () => {

@@ -29,8 +29,7 @@ import { generateRandomToken } from "@/app/_utils/generateRandomToken";
 import { isCheckInAccount } from "@/app/helpers/isCheckInAccount";
 import { isSnowmanAccount } from "@/app/helpers/isSnowmanAccount";
 import resetDashboardAndTripSystemState from "@/app/helpers/resetDashboardAndTripSystemState";
-import { setAuthData } from "@/app/helpers/setAuthData";
-import { authenticate, getAuthenticatedData } from "@/app/lib/actions";
+import { authenticate } from "@/app/lib/actions";
 import createTripIconGreen from "@/public/assets/svgs/map/create-trip-green.svg";
 import createTripIcon from "@/public/assets/svgs/map/create-trip.svg";
 import tripPlanningIconGreen from "@/public/assets/svgs/map/trip-planning-green.svg";
@@ -57,8 +56,8 @@ import axios from "axios";
 import Image from "next/image";
 import Link from "next/link";
 import DashCamSort from "./DashCamSort";
-import FuelSort from "./FuelSort";
 import ELockSort from "./ELockSort";
+import FuelSort from "./FuelSort";
 import TicketStatus from "./TicketStatus";
 
 const selectedStyles = {
@@ -80,6 +79,20 @@ export const LogoutItem = async ({
   dispatch(resetDashboardSelectedVehicleState());
   dispatch(setAuth(initialAuthState));
   await authenticate("LOG_OUT");
+
+  const authSession = localStorage.getItem("auth-session");
+  if (authSession) {
+    try {
+      const data = JSON.parse(authSession);
+      const userId = data.userId || data.userid;
+      if (userId) {
+        localStorage.removeItem(`gps_details_popup_shown_${userId}`);
+      }
+    } catch (e) {
+      console.error("Error parsing auth-session during logout:", e);
+    }
+  }
+
   localStorage.removeItem("auth-session");
   localStorage.removeItem("username-password");
   localStorage.removeItem("auth-token");
@@ -495,7 +508,7 @@ export const TopNavbar = ({
                 />
               ) : eventsData && eventsData.logo ? (
                 eventsData.extension === "png" ||
-                eventsData.extension === "jpg" ? (
+                  eventsData.extension === "jpg" ? (
                   <div className="max-w-[80px] max-h-[30px] object-contain">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -551,12 +564,12 @@ export const TopNavbar = ({
           ) : (
             <>
               {VehicleListType === "trip" ||
-              VehicleListType === "vehicle-allocation-trip" ? (
+                VehicleListType === "vehicle-allocation-trip" ? (
                 <>
                   <Tooltip title="Create Trip" mouseEnterDelay={1}>
                     {userId ===
-                    87162 ? null : createTripOrPlanningTripActive ===
-                      "create-trip" ? (
+                      87162 ? null : createTripOrPlanningTripActive ===
+                        "create-trip" ? (
                       <Image
                         src={createTripIconGreen}
                         width={22}
@@ -592,8 +605,8 @@ export const TopNavbar = ({
                   </Tooltip>
                   <Tooltip title="Plan Trip" mouseEnterDelay={1}>
                     {userId ===
-                    87162 ? null : createTripOrPlanningTripActive ===
-                      "trip-planning" ? (
+                      87162 ? null : createTripOrPlanningTripActive ===
+                        "trip-planning" ? (
                       <Image
                         src={tripPlanningIconGreen}
                         width={22}
@@ -631,7 +644,7 @@ export const TopNavbar = ({
               ) : null}
               {path === "/dashboard" ? (
                 VehicleListType === "trip" ||
-                VehicleListType === "vehicle-allocation-trip" ? (
+                  VehicleListType === "vehicle-allocation-trip" ? (
                   <Tooltip title="Vehicle Listing" mouseEnterDelay={1}>
                     <div
                       className="cursor-pointer hover:filter hover:brightness-95 transition-all duration-300 relative right-10"
@@ -658,7 +671,7 @@ export const TopNavbar = ({
                     </div>
                   </Tooltip>
                 ) : (
-                  Number(userId) === 833815 ? null : (
+                  Number(userId) === 833815 || Number(userId) === 833879 ? null : (
                     <Tooltip title="Trip System" mouseEnterDelay={1}>
                       <div
                         className="cursor-pointer hover:filter hover:brightness-95 transition-all duration-300 relative right-10"
@@ -696,7 +709,7 @@ export const TopNavbar = ({
               <div className="flex items-center gap-3">
                 <div className="mr-10">
                   {poiData?.poi?.length > 0 ||
-                  poiData?.geofenceList?.length > 0 ? (
+                    poiData?.geofenceList?.length > 0 ? (
                     <PoiDropdownSelector />
                   ) : null}
                 </div>
@@ -710,14 +723,14 @@ export const TopNavbar = ({
                   ) : null}
 
                   {path === "/dashboard" &&
-                  (Number(userId) === 3356 ||
-                    Number(userId) === 833193 ||
-                    Number(userId) === 833105 ||
-                    Number(userId) === 81707 ||
-                    Number(userId) === 4343 ||
-                    Number(userId) === 87115 ||
-                    Number(userId) === 833608 ||
-                    Number(userId) === 86693) ? (
+                    (Number(userId) === 3356 ||
+                      Number(userId) === 833193 ||
+                      Number(userId) === 833105 ||
+                      Number(userId) === 81707 ||
+                      Number(userId) === 4343 ||
+                      Number(userId) === 87115 ||
+                      Number(userId) === 833608 ||
+                      Number(userId) === 86693) ? (
                     <FuelSort />
                   ) : null}
                 </div>

@@ -10,10 +10,16 @@ import { useSelector } from "react-redux";
 export const Elock = ({ data }: { data: VehicleData }) => {
   const { userId, groupId } = useSelector((state: RootState) => state.auth);
 
-  const isElockVehicle = data.gpsDtl.controllernum === "CONTROLLER";
+  const isElockVehicle = Number(userId) !== 833840 && data.gpsDtl.controllernum === "CONTROLLER";
 
   const isDirectOldViewUser =
     Number(userId) === 87115 || Number(userId) === 78341;
+
+  const isDirectNewViewUser =
+    Number(userId) === 833925 ||
+    Number(userId) === 833923 ||
+    Number(userId) === 833924 ||
+    Number(userId) === 833926;
 
   const url_link =
     Number(userId) !== 87115
@@ -50,19 +56,23 @@ export const Elock = ({ data }: { data: VehicleData }) => {
     }
   };
 
+  const handleDirectClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (isDirectOldViewUser) {
+      window.open(oldViewUrl, "_blank");
+    } else if (isDirectNewViewUser) {
+      window.open(newViewUrl, "_blank");
+    }
+  };
+
   return (
     <>
       {isElockVehicle && (
         <>
           {data.gpsDtl.acState === "Off" ? (
             <Tooltip title="E-Lock Locked" mouseEnterDelay={1}>
-              {isDirectOldViewUser ? (
-                <div
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    window.open(oldViewUrl, "_blank");
-                  }}
-                >
+              {isDirectOldViewUser || isDirectNewViewUser ? (
+                <div onClick={handleDirectClick}>
                   <LockOutlined
                     style={{ fontSize: "20px", color: "#478C83" }}
                   />
@@ -86,13 +96,8 @@ export const Elock = ({ data }: { data: VehicleData }) => {
             </Tooltip>
           ) : data.gpsDtl.acState === "On" ? (
             <Tooltip title="E-Lock Unlocked" mouseEnterDelay={1}>
-              {isDirectOldViewUser ? (
-                <div
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    window.open(oldViewUrl, "_blank");
-                  }}
-                >
+              {isDirectOldViewUser || isDirectNewViewUser ? (
+                <div onClick={handleDirectClick}>
                   <UnlockOutlined
                     style={{ fontSize: "20px", color: "#BF2E39" }}
                   />

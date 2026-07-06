@@ -9,6 +9,7 @@ import { VehicleDataWithAnkurTravelsData } from "./View";
 import { ColumnDef } from "@tanstack/react-table";
 import CustomTableN, { DownloadReportTs } from "../../common/CustomTableN";
 import checkIfIgnitionOnOrOff from "@/app/helpers/checkIfIgnitionOnOrOff";
+import { getVehicleStatus } from "@/app/helpers/api/showVehicleStatus";
 
 export const CustomVehicleStatusReport = ({
   columns,
@@ -21,16 +22,69 @@ export const CustomVehicleStatusReport = ({
   scroll_y: string;
   loading: boolean;
 }) => {
-  const { groupId, accessLabel, userId, parentUser } = useSelector(
+  const { groupId, accessLabel, userId, parentUser, isVideoTelematics } = useSelector(
     (state: RootState) => state.auth,
   );
   const [downloadReport, setDownloadReport] = useState<
     DownloadReportTs | undefined
   >();
 
-  const onDownloadBtnClick = (
+  const onDownloadBtnClick = async (
     filteredData: VehicleDataWithAnkurTravelsData[],
   ) => {
+    document.body.style.cursor = "wait";
+    let dashcamStatusMap = new Map<string, string>();
+
+    try {
+      if (isVideoTelematics) {
+        const imeis = filteredData
+          .map((vehicle) => {
+            const model = vehicle.gpsDtl?.model || vehicle.model;
+            return model?.replace("##BSJ", "") || "";
+          })
+          .filter((imei) => !!imei);
+
+        if (imeis.length > 0) {
+          const uniqueImeis = Array.from(new Set(imeis));
+          const statuses = [];
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < uniqueImeis.length; i += CHUNK_SIZE) {
+            const chunk = uniqueImeis.slice(i, i + CHUNK_SIZE);
+            const chunkStatuses = await getVehicleStatus(chunk);
+            statuses.push(...chunkStatuses);
+          }
+
+          const getRealtimeStatusLabel = (vehicleState?: number) => {
+            switch (vehicleState) {
+              case 0:
+                return "Offline";
+              case 1:
+                return "Driving";
+              case 2:
+                return "Parking";
+              case 3:
+                return "Never online";
+              case 4:
+                return "Expired";
+              case 5:
+                return "Idling";
+              default:
+                return "Unknown";
+            }
+          };
+
+          statuses.forEach((s) => {
+            const statusLabel = `${getRealtimeStatusLabel(s.vehicleState)}${s.formatTime ? ` (${s.formatTime})` : ""}`;
+            dashcamStatusMap.set(s.terminalNo, statusLabel);
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching dashcam statuses for excel:", error);
+    } finally {
+      document.body.style.cursor = "";
+    }
+
     const hasAnkurCarrierData = (
       vehicle: VehicleData | VehicleDataWithAnkurTravelsData,
     ): vehicle is VehicleDataWithAnkurTravelsData => {
@@ -64,6 +118,12 @@ export const CustomVehicleStatusReport = ({
           chosenAddr = elockInfo.addr;
           chosenGpsTime = elockInfo?.gpstime || defaultGpsTime;
         }
+
+        const model = vehicle.gpsDtl?.model || vehicle.model;
+        const imei = model?.replace("##BSJ", "") || "";
+        const dashcamStatus = imei
+          ? (dashcamStatusMap.get(imei) || "Status unavailable")
+          : "-";
 
         const commonData = {
           "Vehicle No.": vehicle.vehReg,
@@ -118,7 +178,6 @@ export const CustomVehicleStatusReport = ({
             vehicle.gpsDtl.lastfuelfilled != null
               ? `${vehicle.gpsDtl.lastfuelfilled.toFixed(2)} Litre`
               : "",
-          "Last Fuel Time": vehicle.gpsDtl.lastfilledTime,
           "Ignition State": checkIfIgnitionOnOrOff({
             ignitionState: vehicle.gpsDtl.ignState.toLowerCase() as
               | "off"
@@ -139,6 +198,9 @@ export const CustomVehicleStatusReport = ({
             if (elockInfoMode === "NOT WORKING") return gpsInfoMode || elockInfoMode || "-";
             return gpsInfoMode || elockInfoMode || "-";
           })(),
+          ...(isVideoTelematics
+            ? { "Dashcam Status": dashcamStatus }
+            : {}),
           ...(accessLabel === 6
             ? { "Controller No.": vehicle.gpsDtl.jny_distance }
             : {}),
@@ -154,7 +216,7 @@ export const CustomVehicleStatusReport = ({
       },
     );
 
-    const head = Object.keys(rows[0]);
+    const head = Object.keys(rows[0] || {});
     const body = rows.map((row: any) => Object.values(row));
 
     setDownloadReport({

@@ -15,7 +15,16 @@ export default function Home() {
   const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
 
   useEffect(() => {
-    fetch("https://gtrac.in:3636/api/vehicle-sequences")
+    const formattedMonth = String(selectedMonth + 1).padStart(2, "0");
+    const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const formattedLastDay = String(lastDay).padStart(2, "0");
+
+    const startDate = `${selectedYear}-${formattedMonth}-01 00:00:00`;
+    const endDate = `${selectedYear}-${formattedMonth}-${formattedLastDay} 23:59:59`;
+
+    const url = `https://gtrac.in:3636/api/vehicle-sequences?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+
+    fetch(url)
       .then((res) => res.json())
       .then((response) => {
         if (response.success) {
@@ -23,7 +32,7 @@ export default function Home() {
         }
       })
       .catch((err) => console.error("Error fetching:", err));
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   // Generate year options (current year ± 2 years)
   const generateYears = () => {
@@ -170,9 +179,8 @@ export default function Home() {
 
       allowedDates.forEach((day) => {
         const dateObj = new Date(selectedYear, selectedMonth, day);
-        const headerText = `${
-          days[dateObj.getDay()]
-        }/${day} ${dateObj.toLocaleString("default", { month: "short" })}`;
+        const headerText = `${days[dateObj.getDay()]
+          }/${day} ${dateObj.toLocaleString("default", { month: "short" })}`;
 
         // 5 columns per day
         for (let i = 0; i < 5; i++) {

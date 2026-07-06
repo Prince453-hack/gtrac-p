@@ -619,7 +619,7 @@ export const CustomRangePicker = () => {
           ) : (
             <div className="flex justify-between px-2">
               <p>{moment().startOf("day").format("Do MMM, YYYY HH:mm")}</p> -{" "}
-              <p>{moment().format("Do MMM, YYY HH:mm")}</p>
+              <p>{moment().format("Do MMM, YYYY HH:mm")}</p>
             </div>
           )}
         </div>

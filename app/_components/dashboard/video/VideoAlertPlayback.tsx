@@ -44,21 +44,21 @@ function VideoAlertPlayback({ selectedAlarm }: { selectedAlarm: VideoAlarmsRecor
 									<div className='grid grid-cols-2 gap-4'>
 										{Number(userId) === 5360
 											? indiaAlarmFileData &&
-											  indiaAlarmFileData.data
-													?.filter((file) => file.fileType === '00')
-													?.map((file, index) => (
-														<div key={index} className='col-span-1'>
-															<Image src={file.fileUrl} width={500} height={500} alt={file.alarmId} />
-														</div>
-													))
+											indiaAlarmFileData.data
+												?.filter((file) => file.fileType === '00')
+												?.map((file, index) => (
+													<div key={index} className='col-span-1'>
+														<Image src={file.fileUrl} width={500} height={500} alt={file.alarmId} />
+													</div>
+												))
 											: alarmFileData &&
-											  alarmFileData.data
-													?.filter((file) => file.fileType === '00')
-													?.map((file, index) => (
-														<div key={index} className='col-span-1'>
-															<Image src={file.fileUrl} width={500} height={500} alt={file.alarmId} />
-														</div>
-													))}
+											alarmFileData.data
+												?.filter((file) => file.fileType === '00')
+												?.map((file, index) => (
+													<div key={index} className='col-span-1'>
+														<Image src={file.fileUrl} width={500} height={500} alt={file.alarmId} />
+													</div>
+												))}
 									</div>
 								</>
 							),

@@ -31,6 +31,14 @@ const calculateBearing = (prevLat: number, prevLng: number, currLat: number, cur
 	return (bearing + 360) % 360; // Normalize to 0-360 degrees
 };
 
+const normalizeAngle = (angle?: number | null) => {
+	if (angle === null || angle === undefined || Number.isNaN(Number(angle))) {
+		return 0;
+	}
+
+	return ((Number(angle) % 360) + 360) % 360;
+};
+
 export const Markers = () => {
 	const markers = useSelector((state: RootState) => state.markers);
 	const auth = useSelector((state: RootState) => state.auth);
@@ -118,9 +126,12 @@ export const Markers = () => {
 		if (selectedVehicle && selectedVehicle.gpsDtl.latLngDtl.lat !== 0 && selectedVehicle.gpsDtl.latLngDtl.lng !== 0) {
 			const currentLat = selectedVehicle.gpsDtl.latLngDtl.lat;
 			const currentLng = selectedVehicle.gpsDtl.latLngDtl.lng;
+			const serverAngle = selectedVehicle.gpsDtl.angle;
 
 			// If we have a previous position, calculate the bearing
-			if (prevPosition.lat !== null && prevPosition.lng !== null) {
+			if (serverAngle !== null && serverAngle !== undefined && !Number.isNaN(Number(serverAngle))) {
+				setRotation(normalizeAngle(serverAngle));
+			} else if (prevPosition.lat !== null && prevPosition.lng !== null) {
 				const bearing = calculateBearing(prevPosition.lat, prevPosition.lng, currentLat, currentLng);
 				bearing ? setRotation(bearing) : null;
 			}
@@ -197,7 +208,7 @@ export const Markers = () => {
 														alt='Selected Vehicle'
 														width={60}
 														height={60}
-														style={{ transform: `rotate(${rotation}deg)`, transformOrigin: 'center' }}
+														style={{ transform: `rotate(${normalizeAngle(selectedVehicle.gpsDtl.angle) || rotation}deg)`, transformOrigin: 'center' }}
 													/>
 												</div>
 											</OverlayView>
