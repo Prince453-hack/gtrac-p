@@ -393,48 +393,27 @@ const ODBDetailsSection = ({
 
   // Single API call to fetch all alerts
   const fetchAllAlerts = async () => {
-    let data: any = false;
-    let retryCount = 0;
-
     setAlertsLoading(true);
 
-    while (data === false && retryCount < 10) {
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_YATAYAAT_API}/reactapi/alerts_popups.php?token=${groupId}`,
-        );
-        if (!response.ok)
-          throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_YATAYAAT_API}/reactapi/alerts_popups.php?token=${groupId}`,
+      );
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
 
-        data = await response.json();
-        if (data === false) {
-          retryCount++;
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      } catch (error) {
-        retryCount++;
-        if (retryCount >= 10) {
-          setCategorizedAlerts(emptyCategorizedAlerts);
-          setAlertsLoading(false);
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      const data = await response.json();
+
+      if (data && Array.isArray(data)) {
+        categorizeAlerts(data);
+      } else {
+        setCategorizedAlerts(emptyCategorizedAlerts);
       }
-    }
-
-    if (data === false) {
+    } catch (error) {
       setCategorizedAlerts(emptyCategorizedAlerts);
+    } finally {
       setAlertsLoading(false);
-      return;
     }
-
-    if (data && Array.isArray(data)) {
-      categorizeAlerts(data);
-    } else {
-      setCategorizedAlerts(emptyCategorizedAlerts);
-    }
-
-    setAlertsLoading(false);
   };
 
   // Function to categorize alerts based on alert_type
@@ -913,9 +892,15 @@ const ODBDetailsSection = ({
 
   // Simplified useEffect to fetch alerts
   useEffect(() => {
-    if (userId && groupId) {
-      fetchAllAlerts();
-    }
+    if (!userId || !groupId) return;
+
+    fetchAllAlerts();
+
+    const intervalId = setInterval(fetchAllAlerts, 5 * 60 * 1000); // Fetch every 5 minutes
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [userId, groupId, vehicleData, selectedDateRangeDateJs]);
 
   // Update selected item when modal is open

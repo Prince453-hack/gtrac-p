@@ -49,16 +49,16 @@ export const VehicleHistoryTabs: React.FC<VehicleHistoryTabsProps> = ({
     {
       key: "All",
       label: "All",
-      children:
-        customRangeSelected !== "Today" ? (
-          <VehicleHistoryCardListItnary type="All" data={data} view={view} />
-        ) : (
+      children: (
+        <>
           <VehicleHistoryCardListDiagnostic
             type="All"
             data={data}
             view={view}
           />
-        ),
+          <VehicleHistoryCardListItnary type="All" data={data} view={view} />
+        </>
+      ),
     },
     {
       key: "Running",
@@ -128,20 +128,16 @@ export const VehicleHistoryTabs: React.FC<VehicleHistoryTabsProps> = ({
         {
           key: "All",
           label: "All",
-          children:
-            customRangeSelected !== "Today" ? (
-              <VehicleHistoryCardListItnary
-                type="All"
-                data={data}
-                view={view}
-              />
-            ) : (
+          children: (
+            <>
               <VehicleHistoryCardListDiagnostic
                 type="All"
                 data={data}
                 view={view}
               />
-            ),
+              <VehicleHistoryCardListItnary type="All" data={data} view={view} />
+            </>
+          ),
         },
         {
           key: "Running",

@@ -2,10 +2,12 @@
 
 import { useGetAllFuelDataGraphQuery } from "@/app/_globalRedux/services/fuelData";
 import { useGetpathwithDateDaignosticQuery } from "@/app/_globalRedux/services/trackingDashboard";
+import { useLazyGetRawFuelWithDateEcoQuery } from "@/app/_globalRedux/services/trackingDashboard";
 import { useLazyGetpathwithDateDaignosticOBDQuery } from "@/app/_globalRedux/services/trackingDashboardOBD";
 import { GetItnaryWithMapResponse } from "@/app/_globalRedux/services/types";
 import { RootState } from "@/app/_globalRedux/store";
 import { getAlphabetsFirstChr } from "@/app/helpers/stringManipulation";
+import { calculateFuelMetricsFor833916 } from "@/app/helpers/fuelMetrics833916";
 import { Skeleton } from "antd";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
@@ -38,6 +40,8 @@ export const VehicleDateOverview = ({
   const [obdData, setObdData] = useState<any>(null);
   const [isObdLoading, setIsObdLoading] = useState(false);
   const [getOBDData] = useLazyGetpathwithDateDaignosticOBDQuery();
+  const [getRawFuelData, { data: rawFuelData, isLoading: isRawFuelLoading }] =
+    useLazyGetRawFuelWithDateEcoQuery();
 
   // Fuel tracking API call - only for user 833193
   const { data: fuelData, isLoading: isFuelDataLoading } =
@@ -74,6 +78,27 @@ export const VehicleDateOverview = ({
       },
     );
 
+  useEffect(() => {
+    if (Number(userId) === 833916 && selectedVehicle.vId !== 0) {
+      getRawFuelData({
+        userId: Number(userId),
+        vehId: selectedVehicle.vId,
+        startDate:
+          customRange.dateRangeForDataFetching.startDate ||
+          new Date().toISOString().split("T")[0] + " 00:00",
+        endDate:
+          customRange.dateRangeForDataFetching.endDate ||
+          new Date().toISOString().split("T")[0] + " 23:59",
+        interval: "30",
+      });
+    }
+  }, [
+    customRange.dateRangeForDataFetching,
+    getRawFuelData,
+    selectedVehicle.vId,
+    userId,
+  ]);
+
   const isGetPathWithDateDiagnosticLoading = useSelector((state: RootState) =>
     Object.values(state.allTripApi.queries).some(
       (query) =>
@@ -93,8 +118,10 @@ export const VehicleDateOverview = ({
       if (
         selectedVehicle.vId === 0 ||
         !userId ||
-        selectedVehicle.gpsDtl.port === 31500 ||
-        (!selectedVehicle.gpsDtl.fuel && selectedVehicle.gpsDtl.fuel >= 100)
+        (Number(userId) !== 833916 &&
+          (!selectedVehicle.gpsDtl?.fuel ||
+            selectedVehicle.gpsDtl.fuel > 100 ||
+            selectedVehicle.gpsDtl.port === 31500))
       ) {
         setObdData(null);
         return;
@@ -125,7 +152,7 @@ export const VehicleDateOverview = ({
     fetchOBDData();
   }, [
     selectedVehicle.vId,
-    selectedVehicle.gpsDtl.fuel,
+    selectedVehicle.gpsDtl?.fuel,
     customRange.dateRangeForDataFetching,
     userId,
   ]);
@@ -136,27 +163,27 @@ export const VehicleDateOverview = ({
   } {
     const readings: Point[] = Array.isArray(response.fuelarray)
       ? response.fuelarray
-        .filter(
-          (p) =>
-            p.tel_fuel !== 0 &&
-            p.speed >= 2 &&
-            p.speed <= 5 &&
-            p.tel_fuel !== undefined &&
-            p.tel_fuel !== null,
-        )
-        .map((p) => ({
-          odometer: p.tel_odometer ? p.tel_odometer.toString() : "0",
-          fuel: p.tel_fuel ? p.tel_fuel : 0,
-          adblue: 0,
-          time: p.datetime,
-          gps_latitude: p.lat,
-          gps_longitude: p.lng,
-          location: p.location,
-          event: null,
-          amountFilled: null,
-          amountStolen: null,
-          distanceSinceLastFill: null,
-        }))
+          .filter(
+            (p) =>
+              p.tel_fuel !== 0 &&
+              p.speed >= 2 &&
+              p.speed <= 5 &&
+              p.tel_fuel !== undefined &&
+              p.tel_fuel !== null,
+          )
+          .map((p) => ({
+            odometer: p.tel_odometer ? p.tel_odometer.toString() : "0",
+            fuel: p.tel_fuel ? p.tel_fuel : 0,
+            adblue: 0,
+            time: p.datetime,
+            gps_latitude: p.lat,
+            gps_longitude: p.lng,
+            location: p.location,
+            event: null,
+            amountFilled: null,
+            amountStolen: null,
+            distanceSinceLastFill: null,
+          }))
       : [];
 
     if (readings.length < 2) {
@@ -234,7 +261,7 @@ export const VehicleDateOverview = ({
       Number(extra) === 0 || isNaN(Number(extra))
         ? Number(distance.split(" ")[0])
         : Number(distance.split(" ")[0]) +
-        (Number(distance.split(" ")[0]) * Number(extra)) / 100;
+          (Number(distance.split(" ")[0]) * Number(extra)) / 100;
 
     if (fuelConsumed <= 0 || totalDistValue <= 0) {
       return { fuelConsumed, mileage: 0 };
@@ -245,15 +272,23 @@ export const VehicleDateOverview = ({
     return { fuelConsumed, mileage };
   };
 
+  const calculateUser833916FuelMetrics = () =>
+    calculateFuelMetricsFor833916({
+      pathArray: obdData?.patharry || vehicleItnaryWithPath?.patharry,
+      distance,
+      extra,
+    });
+
   return (
     <div className="text-sm">
       <div className="flex justify-between">
         <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
           <h3 className=" relative bottom-1.5">Running Time</h3>
           {isGetPathWithDateDiagnosticLoading ||
-            isApmTotalKmLoading ||
-            isFuelDataLoading ||
-            isObdLoading ? (
+          isApmTotalKmLoading ||
+          isFuelDataLoading ||
+          isObdLoading ||
+          isRawFuelLoading ? (
             <Skeleton.Button
               active={true}
               size="small"
@@ -268,9 +303,10 @@ export const VehicleDateOverview = ({
         <div className="flex items-center justify-center flex-col border w-full h-24">
           <h3 className=" relative bottom-1">Total Distance</h3>
           {isGetPathWithDateDiagnosticLoading ||
-            isApmTotalKmLoading ||
-            isFuelDataLoading ||
-            isObdLoading ? (
+          isApmTotalKmLoading ||
+          isFuelDataLoading ||
+          isObdLoading ||
+          isRawFuelLoading ? (
             <Skeleton.Button
               active={true}
               size="small"
@@ -281,23 +317,25 @@ export const VehicleDateOverview = ({
               {Number(extra) === 0 || isNaN(Number(extra))
                 ? Number(distance.split(" ")[0])
                 : (
-                  Number(distance.split(" ")[0]) +
-                  (Number(distance.split(" ")[0]) * Number(extra)) / 100
-                ).toFixed(0)}{" "}
+                    Number(distance.split(" ")[0]) +
+                    (Number(distance.split(" ")[0]) * Number(extra)) / 100
+                  ).toFixed(0)}{" "}
               KM
             </p>
           )}
         </div>
 
-        {selectedVehicle.gpsDtl.fuel &&
-          selectedVehicle.gpsDtl.fuel <= 100 &&
-          selectedVehicle.gpsDtl.port !== 31500 ? (
+        {(Number(userId) === 833916 ||
+          (selectedVehicle.gpsDtl.fuel &&
+            selectedVehicle.gpsDtl.fuel <= 100 &&
+            selectedVehicle.gpsDtl.port !== 31500)) ? (
           <div className="flex items-center justify-center flex-col border w-full h-24">
             <h3 className=" relative bottom-1">Mileage</h3>
             {isGetPathWithDateDiagnosticLoading ||
-              isApmTotalKmLoading ||
-              isFuelDataLoading ||
-              isObdLoading ? (
+            isApmTotalKmLoading ||
+            isFuelDataLoading ||
+            isObdLoading ||
+            isRawFuelLoading ? (
               <Skeleton.Button
                 active={true}
                 size="small"
@@ -308,6 +346,13 @@ export const VehicleDateOverview = ({
                 {(() => {
                   if (Number(userId) === 833193) {
                     const { mileage } = calculateUser833193FuelMetrics();
+                    return mileage !== null && mileage !== 0
+                      ? mileage.toFixed(2)
+                      : "-";
+                  }
+
+                  if (Number(userId) === 833916) {
+                    const { mileage } = calculateUser833916FuelMetrics();
                     return mileage !== null && mileage !== 0
                       ? mileage.toFixed(2)
                       : "-";
@@ -326,9 +371,9 @@ export const VehicleDateOverview = ({
           <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
             <h3 className=" relative bottom-1">Stopped Time</h3>
             {isGetPathWithDateDiagnosticLoading ||
-              isApmTotalKmLoading ||
-              isFuelDataLoading ||
-              isObdLoading ? (
+            isApmTotalKmLoading ||
+            isFuelDataLoading ||
+            isObdLoading ? (
               <Skeleton.Button
                 active={true}
                 size="small"
@@ -342,16 +387,18 @@ export const VehicleDateOverview = ({
           </div>
         )}
 
-        {selectedVehicle.gpsDtl.fuel &&
-          selectedVehicle.gpsDtl.fuel <= 100 &&
-          selectedVehicle.gpsDtl.port !== 31500 ? (
+        {(Number(userId) === 833916 ||
+          (selectedVehicle.gpsDtl.fuel &&
+            selectedVehicle.gpsDtl.fuel <= 100 &&
+            selectedVehicle.gpsDtl.port !== 31500)) ? (
           <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
             <h3 className=" relative bottom-1">Fuel Consumed</h3>
             {isGetPathWithDateDiagnosticLoading ||
-              isApmTotalKmLoading ||
-              isFuelDataLoading ||
-              isDiagnosticLoading ||
-              isObdLoading ? (
+            isApmTotalKmLoading ||
+            isFuelDataLoading ||
+            isDiagnosticLoading ||
+            isObdLoading ||
+            isRawFuelLoading ? (
               <Skeleton.Button
                 active={true}
                 size="small"
@@ -362,6 +409,13 @@ export const VehicleDateOverview = ({
                 {(() => {
                   if (Number(userId) === 833193) {
                     const { fuelConsumed } = calculateUser833193FuelMetrics();
+                    return fuelConsumed !== null
+                      ? `${fuelConsumed.toFixed(2)} L`
+                      : "-";
+                  }
+
+                  if (Number(userId) === 833916) {
+                    const { fuelConsumed } = calculateUser833916FuelMetrics();
                     return fuelConsumed !== null
                       ? `${fuelConsumed.toFixed(2)} L`
                       : "-";

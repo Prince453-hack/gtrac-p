@@ -5,7 +5,7 @@ import { Modal, Skeleton, Table, message } from "antd";
 import { VehicleData } from "@/app/_globalRedux/services/types/getListVehiclesmobTypes";
 import Image from "next/image";
 import { RightArrow } from "@/public/assets/svgs/nav";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "@/app/_globalRedux/store";
 
@@ -36,6 +36,87 @@ interface AlertData {
   gps_time: string;
 }
 
+const getAlertCategory = (alertTypeValue?: string): string => {
+  const alertTypeLower = (alertTypeValue || "").toLowerCase().trim();
+
+  if (alertTypeLower === "main power disconnected") {
+    return "skip";
+  }
+
+  switch (alertTypeLower) {
+    case "lesser km/day":
+      return "lesser-km";
+    case "enroute halt alert":
+      return "enroute-halt";
+    case "geofence halt alert":
+      return "geofence-halt";
+    case "geofence alert":
+      return "geofence-exit";
+    case "vehicle health alert":
+    case "mainpower disconnected":
+      return "vehicle-health";
+    case "unlock on move":
+    case "lock - unlocked":
+    case "elock alert":
+    case "unhealthy elock alert":
+    case "door open in non-geofence":
+    case "door open in non geofence":
+      return "e-lock";
+    case "phone call":
+    case "handheldphonecall":
+    case "smoke":
+    case "smoking":
+    case "fasten seat belt":
+    case "tired":
+    case "coverning camera":
+    case "fatigue warn":
+    case "fatigue warning":
+    case "fatiguewarn":
+      return "dash-cam";
+    case "challan alert":
+      return "challan";
+    default:
+      return "driver-behaviour";
+  }
+};
+
+const getCardCategory = (cardTitle: string): string => {
+  const titleLower = cardTitle.toLowerCase();
+
+  if (titleLower.includes("lesser km") || titleLower.includes("km / day")) {
+    return "lesser-km";
+  }
+  if (titleLower.includes("enroute") && titleLower.includes("halt")) {
+    return "enroute-halt";
+  }
+  if (titleLower.includes("geofence") && titleLower.includes("halt")) {
+    return "geofence-halt";
+  }
+  if (titleLower.includes("geofence") && titleLower.includes("exit")) {
+    return "geofence-exit";
+  }
+  if (titleLower.includes("vehicle health")) {
+    return "vehicle-health";
+  }
+  if (titleLower.includes("driver") || titleLower.includes("behaviour")) {
+    return "driver-behaviour";
+  }
+  if (titleLower.includes("e-lock") || titleLower.includes("lock")) {
+    return "e-lock";
+  }
+  if (titleLower.includes("dash cam") || titleLower.includes("dashcam")) {
+    return "dash-cam";
+  }
+  if (titleLower.includes("challan")) {
+    return "challan";
+  }
+  if (titleLower.includes("fuel") && titleLower.includes("theft")) {
+    return "fuel-theft";
+  }
+
+  return "unknown";
+};
+
 export const AlertCard = ({
   title,
   count,
@@ -55,88 +136,7 @@ export const AlertCard = ({
 
   const { groupId } = useSelector((state: RootState) => state.auth);
 
-  const getAlertCategory = (alertTypeValue?: string): string => {
-    const alertTypeLower = (alertTypeValue || "").toLowerCase().trim();
-
-    if (alertTypeLower === "main power disconnected") {
-      return "skip";
-    }
-
-    switch (alertTypeLower) {
-      case "lesser km/day":
-        return "lesser-km";
-      case "enroute halt alert":
-        return "enroute-halt";
-      case "geofence halt alert":
-        return "geofence-halt";
-      case "geofence alert":
-        return "geofence-exit";
-      case "vehicle health alert":
-      case "mainpower disconnected":
-        return "vehicle-health";
-      case "unlock on move":
-      case "lock - unlocked":
-      case "elock alert":
-      case "unhealthy elock alert":
-      case "door open in non-geofence":
-      case "door open in non geofence":
-        return "e-lock";
-      case "phone call":
-      case "handheldphonecall":
-      case "smoke":
-      case "smoking":
-      case "fasten seat belt":
-      case "tired":
-      case "coverning camera":
-      case "fatigue warn":
-      case "fatigue warning":
-      case "fatiguewarn":
-        return "dash-cam";
-      case "challan alert":
-        return "challan";
-      default:
-        return "driver-behaviour";
-    }
-  };
-
-  const getCardCategory = (cardTitle: string): string => {
-    const titleLower = cardTitle.toLowerCase();
-
-    if (titleLower.includes("lesser km") || titleLower.includes("km / day")) {
-      return "lesser-km";
-    }
-    if (titleLower.includes("enroute") && titleLower.includes("halt")) {
-      return "enroute-halt";
-    }
-    if (titleLower.includes("geofence") && titleLower.includes("halt")) {
-      return "geofence-halt";
-    }
-    if (titleLower.includes("geofence") && titleLower.includes("exit")) {
-      return "geofence-exit";
-    }
-    if (titleLower.includes("vehicle health")) {
-      return "vehicle-health";
-    }
-    if (titleLower.includes("driver") || titleLower.includes("behaviour")) {
-      return "driver-behaviour";
-    }
-    if (titleLower.includes("e-lock") || titleLower.includes("lock")) {
-      return "e-lock";
-    }
-    if (titleLower.includes("dash cam") || titleLower.includes("dashcam")) {
-      return "dash-cam";
-    }
-    if (titleLower.includes("challan")) {
-      return "challan";
-    }
-    if (titleLower.includes("fuel") && titleLower.includes("theft")) {
-      return "fuel-theft";
-    }
-
-    return "unknown";
-  };
-
-  const fetchAlertsData = async () => {
+  const fetchAlertsData = useCallback(async () => {
     if (!groupId) return;
 
     setLoading(true);
@@ -169,6 +169,17 @@ export const AlertCard = ({
           return getAlertCategory(alert.alert_type) === selectedCategory;
         });
 
+        const getAlertTime = (alert: AlertData): number => {
+          const timeStr =
+            alert.gps_time && alert.gps_time !== "0000-00-00 00:00:00"
+              ? alert.gps_time
+              : alert.datetime;
+          if (!timeStr) return 0;
+          return new Date(timeStr).getTime() || 0;
+        };
+
+        filteredAlerts.sort((a, b) => getAlertTime(b) - getAlertTime(a));
+
         setAlertsData(filteredAlerts);
       }
     } catch (error) {
@@ -177,7 +188,7 @@ export const AlertCard = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [groupId, title]);
 
   useEffect(() => {
     if (isRemarkModalOpen) {

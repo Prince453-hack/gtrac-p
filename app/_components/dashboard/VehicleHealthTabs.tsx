@@ -21,38 +21,38 @@ const columns = (opts: {
   type: "fuel" | "adblue";
   event: "filled" | "theft";
 }): ColumnsType<any> => [
-    {
-      title: "Time",
-      dataIndex: "time",
-      render: (val: string) => moment(val).format("DD MMM, YYYY HH:mm"),
-    },
-    {
-      title: "Odometer",
-      dataIndex: "odometer",
-      render: (val: string) => Number(val).toLocaleString(),
-    },
+  {
+    title: "Time",
+    dataIndex: "time",
+    render: (val: string) => moment(val).format("DD MMM, YYYY HH:mm"),
+  },
+  {
+    title: "Odometer",
+    dataIndex: "odometer",
+    render: (val: string) => Number(val).toLocaleString(),
+  },
 
-    opts.event === "filled"
-      ? {
+  opts.event === "filled"
+    ? {
         title: opts.type === "fuel" ? "Fuel Filled" : "AdBlue Filled",
         dataIndex: "amountFilled",
         render: (val: number | null) => (val != null ? val.toFixed(2) : "–"),
       }
-      : {
+    : {
         title: opts.type === "fuel" ? "Fuel Stolen" : "AdBlue Stolen",
         dataIndex: "amountStolen",
         render: (val: number | null) => (val != null ? val.toFixed(2) : "–"),
       },
-    {
-      title: "Location",
-      dataIndex: "location",
-      render: (val: string) => (
-        <Tooltip title={val} className="w-full flex items-center justify-center">
-          <PushpinFilled className="cursor-pointer" />
-        </Tooltip>
-      ),
-    },
-  ];
+  {
+    title: "Location",
+    dataIndex: "location",
+    render: (val: string) => (
+      <Tooltip title={val} className="w-full flex items-center justify-center">
+        <PushpinFilled className="cursor-pointer" />
+      </Tooltip>
+    ),
+  },
+];
 
 const CustomProgressbarFuelAndAblue = ({
   type,
@@ -64,19 +64,30 @@ const CustomProgressbarFuelAndAblue = ({
   isLoading: boolean;
 }) => {
   const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle
+    (state: RootState) => state.selectedVehicle,
   );
-  const { accessLabel } = useSelector((state: RootState) => state.auth);
+  const { accessLabel, userId } = useSelector((state: RootState) => state.auth);
+  const isLitersFuelUser = [833193, 833916].includes(Number(userId));
 
-  const filledPercentage =
-    (type === "fuel"
-      ? selectedVehicle.gpsDtl.fuel
-      : selectedVehicle.gpsDtl.adblue) ?? 0;
-  const capacity =
-    (type === "fuel"
-      ? selectedVehicle.vehicleFuelCapacity
-      : selectedVehicle.vehicleAdblueCapacity) ?? 0;
-  const actual = capacity * (filledPercentage / 100);
+  let filledPercentage = 0;
+  let actual = 0;
+  let capacity = 0;
+
+  if (type === "fuel") {
+    capacity = selectedVehicle.vehicleFuelCapacity ?? 0;
+    if (isLitersFuelUser) {
+      actual = selectedVehicle.gpsDtl.fuel ?? 0;
+      filledPercentage = capacity > 0 ? (actual / capacity) * 100 : 0;
+    } else {
+      filledPercentage = selectedVehicle.gpsDtl.fuel ?? 0;
+      actual = capacity * (filledPercentage / 100);
+    }
+  } else {
+    // adblue
+    filledPercentage = selectedVehicle.gpsDtl.adblue ?? 0;
+    capacity = selectedVehicle.vehicleAdblueCapacity ?? 0;
+    actual = capacity * (filledPercentage / 100);
+  }
 
   return (
     <div className="max-h-[calc(100vh-480px)] overflow-y-auto">
@@ -131,7 +142,7 @@ const CustomProgressbarFuelAndAblue = ({
 
 const ParameterTable = () => {
   const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle
+    (state: RootState) => state.selectedVehicle,
   );
   const tableParametersHeader = ["Type", "Value"];
 
@@ -155,7 +166,7 @@ const ParameterTable = () => {
     if (selectedVehicle) {
       updateAlertParametersFromString2(
         selectedVehicle.gpsDtl.extraVhlparameter,
-        setAlertParameters
+        setAlertParameters,
       );
     }
   }, [selectedVehicle]);
@@ -179,21 +190,21 @@ const handleTabClick = (activeKey: string) => {
 function VehicleHealthTabs() {
   const { userId } = useSelector((state: RootState) => state.auth);
   const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle
+    (state: RootState) => state.selectedVehicle,
   );
   const customRange = useSelector((state: RootState) => state.customRange);
   const [convertToLocation] = useLazyConvertLatLngToAddressQuery();
   const [getRawFuelData] = useLazyGetRawFuelWithDateQuery();
   const vehicleItnaryWithPath = useSelector(
-    (state: RootState) => state.vehicleItnaryWithPath
+    (state: RootState) => state.vehicleItnaryWithPath,
   );
   const isVehicleItnaryWithPathLoading = useSelector((state: RootState) =>
     Object.values(state.allTripApi.queries).some(
       (query) =>
         query &&
         query.endpointName === "getpathwithDateDaignostic" &&
-        query.status === "pending"
-    )
+        query.status === "pending",
+    ),
   );
 
   const isRawFuelDataLoading = useSelector((state: RootState) =>
@@ -201,8 +212,8 @@ function VehicleHealthTabs() {
       (query) =>
         query &&
         query.endpointName === "getRawFuelWithDate" &&
-        query.status === "pending"
-    )
+        query.status === "pending",
+    ),
   );
 
   const [fuelData, setFuelData] = useState<Point[]>([]);
@@ -272,10 +283,10 @@ function VehicleHealthTabs() {
         customRange.dateRangeForDataFetching.endDate
       ) {
         startDate = moment(
-          customRange.dateRangeForDataFetching.startDate
+          customRange.dateRangeForDataFetching.startDate,
         ).format("YYYY-MM-DD HH:mm");
         endDate = moment(customRange.dateRangeForDataFetching.endDate).format(
-          "YYYY-MM-DD HH:mm"
+          "YYYY-MM-DD HH:mm",
         );
       } else {
         startDate = moment().startOf("day").format("YYYY-MM-DD HH:mm");
@@ -283,7 +294,7 @@ function VehicleHealthTabs() {
       }
 
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timeout")), 20000)
+        setTimeout(() => reject(new Error("Request timeout")), 20000),
       );
 
       Promise.race([
@@ -340,7 +351,7 @@ function VehicleHealthTabs() {
       }))
       ?.sort(
         (a: Point, b: Point) =>
-          new Date(a.time).getTime() - new Date(b.time).getTime()
+          new Date(a.time).getTime() - new Date(b.time).getTime(),
       );
 
     // Use all mapped data for fuel (same as chart), but filter adblue >= 1 and <= 50
@@ -360,7 +371,7 @@ function VehicleHealthTabs() {
         const enriched = computeMetrics(
           adblueData,
           "adblue",
-          adblueThrreshold
+          adblueThrreshold,
         ).filter((pt) => pt.event !== null);
 
         const resolved = await Promise.all(
@@ -370,8 +381,8 @@ function VehicleHealthTabs() {
                 const timeout = new Promise((_, reject) =>
                   setTimeout(
                     () => reject(new Error("Location API timeout")),
-                    20000
-                  )
+                    20000,
+                  ),
                 );
 
                 const locationPromise = convertToLocation({
@@ -393,9 +404,9 @@ function VehicleHealthTabs() {
                     addressData?.loc.replaceAll("_", " ") ?? "Unknown Location",
                 } as Point;
               }
-            } catch { }
+            } catch {}
             return { ...pt, location: "Unknown Location" } as Point;
-          })
+          }),
         );
         setAdblueEvents(resolved);
       } finally {
@@ -420,8 +431,8 @@ function VehicleHealthTabs() {
                 const timeout = new Promise((_, reject) =>
                   setTimeout(
                     () => reject(new Error("Location API timeout")),
-                    20000
-                  )
+                    20000,
+                  ),
                 );
 
                 const locationPromise = convertToLocation({
@@ -442,9 +453,9 @@ function VehicleHealthTabs() {
                     addressData?.loc.replaceAll("_", " ") ?? "Unknown Location",
                 } as Point;
               }
-            } catch { }
+            } catch {}
             return { ...pt, location: "Unknown Location" } as Point;
-          })
+          }),
         );
         setFuelEvents(resolved);
       } finally {

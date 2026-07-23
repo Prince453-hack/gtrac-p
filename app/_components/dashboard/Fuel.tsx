@@ -17,7 +17,10 @@ import { useGetAllFuelDataGraphQuery } from "@/app/_globalRedux/services/fuelDat
 import moment from "moment";
 import { CustomRangePickerReuseWithoutDoubleDate } from "./CustomRangePickerReuseWithoutDoubleDate";
 
-import { useLazyGetRawFuelWithDateQuery } from "@/app/_globalRedux/services/trackingDashboard";
+import {
+  useLazyGetRawFuelWithDateQuery,
+  useLazyGetRawFuelWithDateEcoQuery,
+} from "@/app/_globalRedux/services/trackingDashboard";
 export const Fuel = ({ data }: { data: VehicleData }) => {
   const { userId } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
@@ -29,8 +32,16 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
   const [fetchTrigger, setFetchTrigger] = useState(0);
   const [getRawData, { data: rawData, isLoading, error }] =
     useLazyGetRawFuelWithDateQuery();
+  const [
+    getRawDataEco,
+    { data: rawDataEco, isLoading: isLoadingEco, error: errorEco },
+  ] = useLazyGetRawFuelWithDateEcoQuery();
 
   const isLitersFuelUser = [833193, 833916].includes(Number(userId));
+  const isEcoUser = Number(userId) === 833916;
+  const activeRawData = isEcoUser ? rawDataEco : rawData;
+  const activeIsLoading = isEcoUser ? isLoadingEco : isLoading;
+  const activeError = isEcoUser ? errorEco : error;
 
   const { data: fuelTrackingData, isLoading: isFuelTrackingLoading } =
     useGetAllFuelDataGraphQuery(
@@ -50,7 +61,8 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
       Object.values(state.allTripApi.queries).some(
         (query) =>
           query &&
-          query.endpointName === "getRawFuelWithDate" &&
+          (query.endpointName === "getRawFuelWithDate" ||
+            query.endpointName === "getRawFuelWithDateEco") &&
           query.status === "pending",
       ),
   );
@@ -58,6 +70,14 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
   const handleFetchFuelAdblueAlerts = () => {
     if (Number(userId) === 833193) {
       setFetchTrigger((prev) => prev + 1);
+    } else if (isEcoUser) {
+      getRawDataEco({
+        userId: Number(userId),
+        vehId: data.vId,
+        startDate: moment(customDateRange[0]).format("YYYY-MM-DD HH:mm"),
+        endDate: moment(customDateRange[1]).format("YYYY-MM-DD HH:mm"),
+        interval: "30",
+      });
     } else {
       getRawData({
         userId: Number(userId),
@@ -83,13 +103,7 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
       (isLitersFuelUser || data.gpsDtl.fuel <= 100) &&
       data.gpsDtl.port !== 31500 ? (
         <Tooltip
-          title={
-            Number(userId) === 833916
-              ? "Fuel Capacity"
-              : isLitersFuelUser
-                ? "Fuel (Liters)"
-                : "Fuel Percentage"
-          }
+          title={isLitersFuelUser ? "Fuel (Liters)" : "Fuel Percentage"}
           mouseEnterDelay={1}
         >
           <div
@@ -109,19 +123,11 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
             </div>
             <div>
               <p className="font-semibold text-xs text-neutral-600">
-                {Number(userId) === 833916
-                  ? (() => {
-                      const pct = data.gpsDtl.fuel;
-                      const capacity = data.vehicleFuelCapacity;
-                      if (capacity && capacity > 0) {
-                        const liters = (pct / 100) * capacity;
-                        return `${liters.toFixed(0)} L`;
-                      }
-                      return `${pct.toFixed(0)}%`;
-                    })()
-                  : isLitersFuelUser
-                    ? `${data.gpsDtl.fuel.toFixed(2)}L`
-                    : `${data.gpsDtl.fuel.toFixed(0)}%`}
+                {isLitersFuelUser
+                  ? Number(userId) === 833916
+                    ? `${data.gpsDtl.fuel.toFixed(0)}L`
+                    : `${data.gpsDtl.fuel.toFixed(2)}L`
+                  : `${data.gpsDtl.fuel.toFixed(0)}%`}
               </p>
             </div>
           </div>
@@ -159,7 +165,9 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
               type="primary"
               size="middle"
               onClick={handleFetchFuelAdblueAlerts}
-              loading={isLoading || isGetRawWithDataWithoutLocationLoading}
+              loading={
+                activeIsLoading || isGetRawWithDataWithoutLocationLoading
+              }
             >
               Fetch Alerts
             </Button>
@@ -167,14 +175,14 @@ export const Fuel = ({ data }: { data: VehicleData }) => {
 
           <FuelAdblueTabs
             data={data}
-            rawData={rawData}
+            rawData={activeRawData}
             fuelTrackingData={fuelTrackingData}
             isLoading={
-              isLoading ||
+              activeIsLoading ||
               isGetRawWithDataWithoutLocationLoading ||
               isFuelTrackingLoading
             }
-            error={error}
+            error={activeError}
             startDate={customDateRange[0]}
             endDate={customDateRange[1]}
             fetchTrigger={fetchTrigger}

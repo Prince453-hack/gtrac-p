@@ -197,11 +197,15 @@ const getResponseFieldName = (apiParamName: string): string => {
 };
 
 const hasVideoTelematicsMedia = (
-  alert: (Partial<VideoAlarmsRecord> & {
-    videoUrl?: string;
-    imageUrls?: string[];
-  }) | null | undefined,
-) => Boolean(alert?.videoUrl || (alert?.imageUrls && alert.imageUrls.length > 0));
+  alert:
+    | (Partial<VideoAlarmsRecord> & {
+        videoUrl?: string;
+        imageUrls?: string[];
+      })
+    | null
+    | undefined,
+) =>
+  Boolean(alert?.videoUrl || (alert?.imageUrls && alert.imageUrls.length > 0));
 
 const getAdjustedAlerts = ({
   data,
@@ -222,57 +226,57 @@ const getAdjustedAlerts = ({
     SetStateAction<
       {
         value:
-        | "acceleration"
-        | "battery"
-        | "brake"
-        | "engine"
-        | "safetySystems"
-        | "sensor"
-        | "general"
-        | "forwardCollisionWarning"
-        | "fatigueAlarm"
-        | "fatigueWarn"
-        | "bothHandsOffSteeringWheel"
-        | "handheldPhoneCall"
-        | "longTimeWithoutLookingAhead"
-        | "smoking"
-        | "seatBelt"
-        | "occlusion"
-        | "speed"
-        | "rapid"
-        | "slow"
-        | "wheel"
-        | "contineousDrive"
-        | "padlock"
-        | "freewheeling"
-        | "freewheelingWrong"
-        | "harshAcceleration"
-        | "harshBreak"
-        | "internalPower"
-        | "overspeedKMT"
-        | "OverSpeed"
-        | "MainpowerConnected"
-        | "mainpower"
-        | "NightDrive"
-        | "PoscoOverspeed"
-        | "alcohol"
-        | "unlockOnMove"
-        | "unlockOutsideGeofence"
-        | "unhealth"
-        | "fuelTheft"
-        | "fuelPowerDisconnected"
-        | "enrouteIdle"
-        | "idleAtGeofence";
+          | "acceleration"
+          | "battery"
+          | "brake"
+          | "engine"
+          | "safetySystems"
+          | "sensor"
+          | "general"
+          | "forwardCollisionWarning"
+          | "fatigueAlarm"
+          | "fatigueWarn"
+          | "bothHandsOffSteeringWheel"
+          | "handheldPhoneCall"
+          | "longTimeWithoutLookingAhead"
+          | "smoking"
+          | "seatBelt"
+          | "occlusion"
+          | "speed"
+          | "rapid"
+          | "slow"
+          | "wheel"
+          | "contineousDrive"
+          | "padlock"
+          | "freewheeling"
+          | "freewheelingWrong"
+          | "harshAcceleration"
+          | "harshBreak"
+          | "internalPower"
+          | "overspeedKMT"
+          | "OverSpeed"
+          | "MainpowerConnected"
+          | "mainpower"
+          | "NightDrive"
+          | "PoscoOverspeed"
+          | "alcohol"
+          | "unlockOnMove"
+          | "unlockOutsideGeofence"
+          | "unhealth"
+          | "fuelTheft"
+          | "fuelPowerDisconnected"
+          | "enrouteIdle"
+          | "idleAtGeofence";
         title: string;
         count: number;
         type:
-        | "DRIVER_BEHAVIOUR"
-        | "OTHERS"
-        | "DTC"
-        | "VIDEO_TELEMATICS"
-        | "E_LOCK"
-        | "FUEL"
-        | "GPS";
+          | "DRIVER_BEHAVIOUR"
+          | "OTHERS"
+          | "DTC"
+          | "VIDEO_TELEMATICS"
+          | "E_LOCK"
+          | "FUEL"
+          | "GPS";
         label: string;
         isNewData: boolean;
       }[]
@@ -308,9 +312,9 @@ const getAdjustedAlerts = ({
     ...(alert.highenginetemperature ? alert.highenginetemperature : []),
     ...(alert.idle
       ? alert.idle.map((idleAlert) => ({
-        ...idleAlert,
-        AlertStatus: idleAlert.remark ? "Closed" : "Open",
-      }))
+          ...idleAlert,
+          AlertStatus: idleAlert.remark ? "Closed" : "Open",
+        }))
       : []),
     ...(alert.internalPower ? alert.internalPower : []),
     ...(alert.lowengineoilpressure ? alert.lowengineoilpressure : []),
@@ -395,7 +399,7 @@ const getAdjustedAlerts = ({
           (alert) =>
             alert.exception_type &&
             String(alert.exception_type).toUpperCase() ===
-            dtcType.toUpperCase(),
+              dtcType.toUpperCase(),
         );
         tempAlerts.push(...filteredAlerts);
       }
@@ -424,8 +428,9 @@ const getAdjustedAlerts = ({
           groupedAlerts.set(alertKey, alert);
         }
       } else {
-        const alertKey = `${alert.exception_type
-          }_no_time_${Date.now()}_${Math.random()}`;
+        const alertKey = `${
+          alert.exception_type
+        }_no_time_${Date.now()}_${Math.random()}`;
         groupedAlerts.set(alertKey, alert);
       }
     });
@@ -444,8 +449,9 @@ const getAdjustedAlerts = ({
           groupedAlerts.set(alertKey, alert);
         }
       } else {
-        const alertKey = `${alert.exception_type
-          }_no_time_${Date.now()}_${Math.random()}`;
+        const alertKey = `${
+          alert.exception_type
+        }_no_time_${Date.now()}_${Math.random()}`;
         groupedAlerts.set(alertKey, alert);
       }
     });
@@ -1543,7 +1549,7 @@ const allAlertOptions = [
 ];
 
 const SIDEBAR_USER_IDS: number[] = [
-  3356, 82815, 87470, 833105, 81707, 87115, 4343, 833783, 833868
+  3356, 82815, 87470, 833105, 81707, 87115, 4343, 833783, 833868,
 ];
 
 const VIDEO_TELEMATICS_USER_IDS: number[] = [81707, 4343, 833783, 833868];
@@ -1722,8 +1728,8 @@ export const View = () => {
                     : undefined;
                   const imageUrls = alarm.imagePath
                     ? alarm.imagePath
-                      .split(",")
-                      .map((path) => `${baseUrl}${path}`)
+                        .split(",")
+                        .map((path) => `${baseUrl}${path}`)
                     : undefined;
 
                   return {
@@ -1865,8 +1871,8 @@ export const View = () => {
               }
 
               allVideoAlerts.push(
-                ...(filteredAlerts.filter(
-                  (alert) => hasVideoTelematicsMedia(alert),
+                ...(filteredAlerts.filter((alert) =>
+                  hasVideoTelematicsMedia(alert),
                 ) as VideoAlarmsRecord[]),
               );
             }
@@ -1928,8 +1934,8 @@ export const View = () => {
   const convertVideoAlertsToAlertsFormat = (
     videoAlerts: VideoAlarmsRecord[],
   ): AlertByDayEvents[] => {
-    const suppressedAlerts = applySuppression(videoAlerts).filter(
-      (alert) => hasVideoTelematicsMedia(alert),
+    const suppressedAlerts = applySuppression(videoAlerts).filter((alert) =>
+      hasVideoTelematicsMedia(alert),
     );
 
     return suppressedAlerts.map(
@@ -2060,57 +2066,57 @@ export const View = () => {
   const [alertCount, setAlertCount] = useState<
     {
       value:
-      | "acceleration"
-      | "battery"
-      | "brake"
-      | "engine"
-      | "safetySystems"
-      | "sensor"
-      | "general"
-      | "forwardCollisionWarning"
-      | "fatigueAlarm"
-      | "fatigueWarn"
-      | "bothHandsOffSteeringWheel"
-      | "handheldPhoneCall"
-      | "longTimeWithoutLookingAhead"
-      | "smoking"
-      | "seatBelt"
-      | "occlusion"
-      | "speed"
-      | "rapid"
-      | "slow"
-      | "wheel"
-      | "contineousDrive"
-      | "padlock"
-      | "freewheeling"
-      | "freewheelingWrong"
-      | "harshAcceleration"
-      | "harshBreak"
-      | "internalPower"
-      | "overspeedKMT"
-      | "OverSpeed"
-      | "MainpowerConnected"
-      | "mainpower"
-      | "NightDrive"
-      | "PoscoOverspeed"
-      | "alcohol"
-      | "unlockOnMove"
-      | "unlockOutsideGeofence"
-      | "unhealth"
-      | "fuelTheft"
-      | "fuelPowerDisconnected"
-      | "enrouteIdle"
-      | "idleAtGeofence";
+        | "acceleration"
+        | "battery"
+        | "brake"
+        | "engine"
+        | "safetySystems"
+        | "sensor"
+        | "general"
+        | "forwardCollisionWarning"
+        | "fatigueAlarm"
+        | "fatigueWarn"
+        | "bothHandsOffSteeringWheel"
+        | "handheldPhoneCall"
+        | "longTimeWithoutLookingAhead"
+        | "smoking"
+        | "seatBelt"
+        | "occlusion"
+        | "speed"
+        | "rapid"
+        | "slow"
+        | "wheel"
+        | "contineousDrive"
+        | "padlock"
+        | "freewheeling"
+        | "freewheelingWrong"
+        | "harshAcceleration"
+        | "harshBreak"
+        | "internalPower"
+        | "overspeedKMT"
+        | "OverSpeed"
+        | "MainpowerConnected"
+        | "mainpower"
+        | "NightDrive"
+        | "PoscoOverspeed"
+        | "alcohol"
+        | "unlockOnMove"
+        | "unlockOutsideGeofence"
+        | "unhealth"
+        | "fuelTheft"
+        | "fuelPowerDisconnected"
+        | "enrouteIdle"
+        | "idleAtGeofence";
       title: string;
       count: number;
       type:
-      | "DRIVER_BEHAVIOUR"
-      | "OTHERS"
-      | "DTC"
-      | "VIDEO_TELEMATICS"
-      | "E_LOCK"
-      | "FUEL"
-      | "GPS";
+        | "DRIVER_BEHAVIOUR"
+        | "OTHERS"
+        | "DTC"
+        | "VIDEO_TELEMATICS"
+        | "E_LOCK"
+        | "FUEL"
+        | "GPS";
       label: string;
       isNewData: boolean;
     }[]
@@ -3540,7 +3546,7 @@ export const View = () => {
     let data: any = false;
     let retryCount = 0;
 
-    while (data === false && retryCount < 10) {
+    while (data === false && retryCount < 2) {
       try {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_REACT_API}/alerts_popups.php?token=${groupId}`,
@@ -3555,7 +3561,7 @@ export const View = () => {
         }
       } catch (error) {
         retryCount++;
-        if (retryCount >= 10) {
+        if (retryCount >= 2) {
           setELockAlertsData([]);
           setUnhealthyElockAlertsData([]);
           setOverSpeedAlertsData([]);
@@ -3798,9 +3804,9 @@ export const View = () => {
               const existingAlert = latestByVehicle.get(vehicleNo);
               const existingTime = moment(
                 existingAlert?.datetime ||
-                existingAlert?.starttime ||
-                existingAlert?.alert_time ||
-                "",
+                  existingAlert?.starttime ||
+                  existingAlert?.alert_time ||
+                  "",
               );
 
               if (
@@ -4687,15 +4693,15 @@ export const View = () => {
         // Only include Diagnosed RPM for user 3356
         ...(Number(userId) === 3356
           ? [
-            {
-              label: "Diagnosed RPM",
-              title: "Diagnosed RPM",
-              value: "freewheelingWrong" as const,
-              type: "DRIVER_BEHAVIOUR" as const,
-              count: 0,
-              isNewData: false,
-            },
-          ]
+              {
+                label: "Diagnosed RPM",
+                title: "Diagnosed RPM",
+                value: "freewheelingWrong" as const,
+                type: "DRIVER_BEHAVIOUR" as const,
+                count: 0,
+                isNewData: false,
+              },
+            ]
           : []),
         {
           label: "Harsh Acceleration",
@@ -4907,12 +4913,12 @@ export const View = () => {
         // Only include Diagnosed RPM for user 3356
         ...(Number(userId) === 3356
           ? [
-            {
-              label: "Diagnosed RPM",
-              apiType: "freewheelingWrong",
-              type: "DRIVER_BEHAVIOUR",
-            },
-          ]
+              {
+                label: "Diagnosed RPM",
+                apiType: "freewheelingWrong",
+                type: "DRIVER_BEHAVIOUR",
+              },
+            ]
           : []),
         {
           label: "Harsh Acceleration",
@@ -5004,8 +5010,8 @@ export const View = () => {
           endDateTime: moment(new Date()).format("YYYY-MM-DD HH:mm:ss"),
           alertType:
             Number(userId) === 5275 ||
-              Number(userId) === 833381 ||
-              Number(userId) === 83558
+            Number(userId) === 833381 ||
+            Number(userId) === 83558
               ? "All"
               : alertOptions?.[0]?.value || "All",
           token: Number(userId) === 833381 ? "5267" : groupId,
@@ -5105,12 +5111,12 @@ export const View = () => {
       token: groupId,
       vehReg:
         isKmtAccount(Number(userId), Number(parentUser)) ||
-          Number(userId) === 81707
+        Number(userId) === 81707
           ? selectedVehicle.vehReg
           : 0,
       vehId:
         isKmtAccount(Number(userId), Number(parentUser)) ||
-          Number(userId) === 81707
+        Number(userId) === 81707
           ? selectedVehicle.vId
           : 0,
     })
@@ -5781,10 +5787,7 @@ export const View = () => {
 
     const isVideoAlert = alertType && videoAlertTypes.includes(alertType);
 
-    if (
-      isVideoAlert &&
-      VIDEO_TELEMATICS_USER_IDS.includes(Number(userId))
-    ) {
+    if (isVideoAlert && VIDEO_TELEMATICS_USER_IDS.includes(Number(userId))) {
       setLoading(true);
 
       const filteredVideoAlerts = videoAlerts.filter(
@@ -5819,31 +5822,31 @@ export const View = () => {
           : moment(new Date()).format("YYYY-MM-DD HH:mm:ss"),
       alertType: customDateRangeChanged
         ? alertType ||
-        (selectedAlertOption && selectedAlertOption.value !== "All"
-          ? selectedAlertOption.value
-          : Number(userId) === 5275 ||
-            Number(userId) === 833381 ||
-            Number(userId) === 83558
-            ? "All"
-            : "ContinousDrive")
+          (selectedAlertOption && selectedAlertOption.value !== "All"
+            ? selectedAlertOption.value
+            : Number(userId) === 5275 ||
+                Number(userId) === 833381 ||
+                Number(userId) === 83558
+              ? "All"
+              : "ContinousDrive")
         : alertType ||
-        (selectedAlertOption
-          ? (Number(userId) === 5275 ||
-            Number(userId) === 833381 ||
-            Number(userId) === 83558) &&
-            selectedAlertOption.value === "All"
-            ? "All"
-            : selectedAlertOption.value
-          : ""),
+          (selectedAlertOption
+            ? (Number(userId) === 5275 ||
+                Number(userId) === 833381 ||
+                Number(userId) === 83558) &&
+              selectedAlertOption.value === "All"
+              ? "All"
+              : selectedAlertOption.value
+            : ""),
       token: Number(userId) === 833381 ? "5267" : groupId, // Use parent token for child user 833381
       vehReg:
         isKmtAccount(Number(userId), Number(parentUser)) ||
-          Number(userId) === 81707
+        Number(userId) === 81707
           ? selectedVehicle.vehReg
           : 0,
       vehId:
         isKmtAccount(Number(userId), Number(parentUser)) ||
-          Number(userId) === 81707
+        Number(userId) === 81707
           ? selectedVehicle.vId
           : 0,
     })
@@ -6016,9 +6019,9 @@ export const View = () => {
             ...(alert.highenginetemperature ? alert.highenginetemperature : []),
             ...(alert.idle
               ? alert.idle.map((idleAlert) => ({
-                ...idleAlert,
-                AlertStatus: idleAlert.remark ? "Closed" : "Open",
-              }))
+                  ...idleAlert,
+                  AlertStatus: idleAlert.remark ? "Closed" : "Open",
+                }))
               : []),
             ...(alert.internalPower ? alert.internalPower : []),
             ...(alert.lowengineoilpressure ? alert.lowengineoilpressure : []),
@@ -6101,8 +6104,8 @@ export const View = () => {
                 const formattedDuration = `${hours
                   .toString()
                   .padStart(2, "0")}:${minutes
-                    .toString()
-                    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+                  .toString()
+                  .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
                 // Use first alert as base and update duration and end time
                 const groupedAlert: AlertByDayEvents = {
@@ -6170,31 +6173,31 @@ export const View = () => {
           : moment(new Date()).format("YYYY-MM-DD HH:mm:ss"),
       alertType: customDateRangeChanged
         ? alertType ||
-        (selectedAlertOption && selectedAlertOption.value !== "All"
-          ? selectedAlertOption.value
-          : Number(userId) === 5275 ||
-            Number(userId) === 833381 ||
-            Number(userId) === 83558
-            ? "All"
-            : "ContinousDrive")
+          (selectedAlertOption && selectedAlertOption.value !== "All"
+            ? selectedAlertOption.value
+            : Number(userId) === 5275 ||
+                Number(userId) === 833381 ||
+                Number(userId) === 83558
+              ? "All"
+              : "ContinousDrive")
         : alertType ||
-        (selectedAlertOption
-          ? (Number(userId) === 5275 ||
-            Number(userId) === 833381 ||
-            Number(userId) === 83558) &&
-            selectedAlertOption.value === "All"
-            ? "All"
-            : selectedAlertOption.value
-          : ""),
+          (selectedAlertOption
+            ? (Number(userId) === 5275 ||
+                Number(userId) === 833381 ||
+                Number(userId) === 83558) &&
+              selectedAlertOption.value === "All"
+              ? "All"
+              : selectedAlertOption.value
+            : ""),
       token: Number(userId) === 833381 ? "5267" : groupId, // Use parent token for child user 833381
       vehReg:
         isKmtAccount(Number(userId), Number(parentUser)) ||
-          Number(userId) === 81707
+        Number(userId) === 81707
           ? selectedVehicle.vehReg
           : 0,
       vehId:
         isKmtAccount(Number(userId), Number(parentUser)) ||
-          Number(userId) === 81707
+        Number(userId) === 81707
           ? selectedVehicle.vId
           : 0,
     })
@@ -6559,8 +6562,9 @@ export const View = () => {
       const body = rows.map((row) => Object.values(row));
 
       setDownloadReport({
-        title: `${selectedAlertOption && selectedAlertOption.label
-          } Alert Report`,
+        title: `${
+          selectedAlertOption && selectedAlertOption.label
+        } Alert Report`,
         excel: {
           title: `${selectedAlertOption && selectedAlertOption.label}`,
           rows,
@@ -6569,8 +6573,9 @@ export const View = () => {
         pdf: {
           head: [head],
           body: body,
-          title: `${selectedAlertOption && selectedAlertOption.label
-            } Alert Report`,
+          title: `${
+            selectedAlertOption && selectedAlertOption.label
+          } Alert Report`,
           pageSize: "a3",
         },
       });
@@ -6608,8 +6613,9 @@ export const View = () => {
       const body = rows.map((row) => Object.values(row));
 
       setDownloadReport({
-        title: `${selectedAlertOption && selectedAlertOption.label
-          } Alert Report`,
+        title: `${
+          selectedAlertOption && selectedAlertOption.label
+        } Alert Report`,
         excel: {
           title: `${selectedAlertOption && selectedAlertOption.label}`,
           rows,
@@ -6618,8 +6624,9 @@ export const View = () => {
         pdf: {
           head: [head],
           body: body,
-          title: `${selectedAlertOption && selectedAlertOption.label
-            } Alert Report`,
+          title: `${
+            selectedAlertOption && selectedAlertOption.label
+          } Alert Report`,
           pageSize: "a3",
         },
       });
@@ -6640,13 +6647,16 @@ export const View = () => {
     if (allConverted.length === 0) {
       api.warning({
         message: "No Data",
-        description: "No video telematics alerts found to download after filtering/suppression.",
+        description:
+          "No video telematics alerts found to download after filtering/suppression.",
       });
       return;
     }
 
     const rows = allConverted.map((alert: AlertByDayEvents) => ({
-      ["Vehicle No"]: alert.vehicle_no ? String(alert.vehicle_no).replaceAll("_", " ") : "",
+      ["Vehicle No"]: alert.vehicle_no
+        ? String(alert.vehicle_no).replaceAll("_", " ")
+        : "",
       ["Alert Type"]: alert.exception_type || "",
       ["Time"]: alert.starttime
         ? moment(new Date(alert.starttime)).format("DD-MM-YYYY HH:mm:ss")
@@ -6818,11 +6828,11 @@ export const View = () => {
         ) : (
           <>
             {SIDEBAR_USER_IDS.includes(Number(userId)) ||
-              Number(parentUser) === 3356 ||
-              Number(parentUser) === 87470 ||
-              (Number(parentUser) === 82815 &&
-                alertOptions &&
-                alertOptions.length > 0) ? (
+            Number(parentUser) === 3356 ||
+            Number(parentUser) === 87470 ||
+            (Number(parentUser) === 82815 &&
+              alertOptions &&
+              alertOptions.length > 0) ? (
               <div className="flex">
                 <div className="w-72 bg-white  shadow-sm max-h-[calc(100vh-125px)] overflow-y-auto">
                   <div className="">
@@ -6843,11 +6853,12 @@ export const View = () => {
                         .map((option) => (
                           <div
                             key={option.value}
-                            className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
+                            className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                              selectedAlertOption &&
                               selectedAlertOption.label === option.label
-                              ? "bg-blue-100 border-l-3 border-blue-500"
-                              : "hover:bg-blue-25 hover:bg-opacity-50"
-                              }`}
+                                ? "bg-blue-100 border-l-3 border-blue-500"
+                                : "hover:bg-blue-25 hover:bg-opacity-50"
+                            }`}
                             onClick={() => {
                               let matchingAlert = alertOptions?.find(
                                 (alert) => alert.label === option.label,
@@ -6911,79 +6922,80 @@ export const View = () => {
                   {alertCount
                     .filter((option) => option.type === "OTHERS")
                     .reduce((sum, option) => sum + option.count, 0) > 0 && (
-                      <div className="">
-                        <div className="bg-orange-50 px-3 py-2 sticky top-0 z-10">
-                          <h3 className="font-medium text-orange-800 text-xs uppercase tracking-wide">
-                            Others (
-                            {alertCount
-                              .filter((option) => option.type === "OTHERS")
-                              .reduce((sum, option) => sum + option.count, 0)}
-                            )
-                          </h3>
-                        </div>
-                        <div className="p-1 space-y-0.5">
+                    <div className="">
+                      <div className="bg-orange-50 px-3 py-2 sticky top-0 z-10">
+                        <h3 className="font-medium text-orange-800 text-xs uppercase tracking-wide">
+                          Others (
                           {alertCount
                             .filter((option) => option.type === "OTHERS")
-                            .map((option) => (
-                              <div
-                                key={option.value}
-                                className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
-                                  selectedAlertOption.label === option.label
+                            .reduce((sum, option) => sum + option.count, 0)}
+                          )
+                        </h3>
+                      </div>
+                      <div className="p-1 space-y-0.5">
+                        {alertCount
+                          .filter((option) => option.type === "OTHERS")
+                          .map((option) => (
+                            <div
+                              key={option.value}
+                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                                selectedAlertOption &&
+                                selectedAlertOption.label === option.label
                                   ? "bg-orange-100 border-l-3 border-orange-500"
                                   : "hover:bg-orange-25 hover:bg-opacity-50"
-                                  }`}
-                                onClick={() => {
-                                  let matchingAlert = alertOptions?.find(
+                              }`}
+                              onClick={() => {
+                                let matchingAlert = alertOptions?.find(
+                                  (alert) => alert.label === option.label,
+                                );
+
+                                if (!matchingAlert) {
+                                  matchingAlert = allAlertOptions.find(
                                     (alert) => alert.label === option.label,
                                   );
+                                }
 
-                                  if (!matchingAlert) {
-                                    matchingAlert = allAlertOptions.find(
-                                      (alert) => alert.label === option.label,
-                                    );
-                                  }
+                                if (!matchingAlert) {
+                                  matchingAlert = {
+                                    label: option.label,
+                                    value: option.value,
+                                    columns: allAlertOptions[0]?.columns || {},
+                                  };
+                                }
 
-                                  if (!matchingAlert) {
-                                    matchingAlert = {
-                                      label: option.label,
-                                      value: option.value,
-                                      columns: allAlertOptions[0]?.columns || {},
-                                    };
-                                  }
-
-                                  // Always set the selected option and fetch data
-                                  setSelectedAlertOption(matchingAlert);
-                                  setAlertCount((prev) =>
-                                    prev.map((prevOption) => {
-                                      if (prevOption.value === option.value) {
-                                        return {
-                                          ...prevOption,
-                                          isNewData: false,
-                                        };
-                                      }
-                                      return prevOption;
-                                    }),
-                                  );
-                                  fetchUpdatedAlertsListOnly({
-                                    alertType: matchingAlert.value,
-                                    isDTC: false,
-                                    useCustomDate: customDateRangeChanged,
-                                  });
-                                }}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="font-medium text-gray-700 text-xs truncate">
-                                    {option.title}
-                                  </h4>
-                                </div>
-                                <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded ml-2">
-                                  {option.count}
-                                </span>
+                                // Always set the selected option and fetch data
+                                setSelectedAlertOption(matchingAlert);
+                                setAlertCount((prev) =>
+                                  prev.map((prevOption) => {
+                                    if (prevOption.value === option.value) {
+                                      return {
+                                        ...prevOption,
+                                        isNewData: false,
+                                      };
+                                    }
+                                    return prevOption;
+                                  }),
+                                );
+                                fetchUpdatedAlertsListOnly({
+                                  alertType: matchingAlert.value,
+                                  isDTC: false,
+                                  useCustomDate: customDateRangeChanged,
+                                });
+                              }}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-gray-700 text-xs truncate">
+                                  {option.title}
+                                </h4>
                               </div>
-                            ))}
-                        </div>
+                              <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded ml-2">
+                                {option.count}
+                              </span>
+                            </div>
+                          ))}
                       </div>
-                    )}
+                    </div>
+                  )}
 
                   <div>
                     <div className="bg-red-50 px-3 py-2 sticky top-0 z-10">
@@ -7001,11 +7013,12 @@ export const View = () => {
                         .map((option) => (
                           <div
                             key={option.value}
-                            className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
+                            className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                              selectedAlertOption &&
                               selectedAlertOption.label === option.label
-                              ? "bg-red-100 border-l-3 border-red-500"
-                              : "hover:bg-red-25 hover:bg-opacity-50"
-                              }`}
+                                ? "bg-red-100 border-l-3 border-red-500"
+                                : "hover:bg-red-25 hover:bg-opacity-50"
+                            }`}
                             onClick={() => {
                               let matchingAlert = alertOptions?.find(
                                 (alert) => alert.label === option.label,
@@ -7074,15 +7087,23 @@ export const View = () => {
                             .reduce((sum, option) => sum + option.count, 0)}
                           )
                         </h3>
-                        {Number(userId) === 833868 ? <Tooltip title="Download">
-                          <Button
-                            type="text"
-                            size="small"
-                            onClick={handleDownloadVideoTelematicsExcel}
-                            icon={<DownloadOutlined className="text-purple-800" />}
-                            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-                          />
-                        </Tooltip> : null}
+                        {Number(userId) === 833868 ? (
+                          <Tooltip title="Download">
+                            <Button
+                              type="text"
+                              size="small"
+                              onClick={handleDownloadVideoTelematicsExcel}
+                              icon={
+                                <DownloadOutlined className="text-purple-800" />
+                              }
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            />
+                          </Tooltip>
+                        ) : null}
                       </div>
                       <div className="p-1 space-y-0.5">
                         {alertCount
@@ -7092,11 +7113,12 @@ export const View = () => {
                           .map((option) => (
                             <div
                               key={option.value}
-                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
+                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                                selectedAlertOption &&
                                 selectedAlertOption.label === option.label
-                                ? "bg-purple-100 border-l-3 border-purple-500"
-                                : "hover:bg-purple-25 hover:bg-opacity-50"
-                                }`}
+                                  ? "bg-purple-100 border-l-3 border-purple-500"
+                                  : "hover:bg-purple-25 hover:bg-opacity-50"
+                              }`}
                               onClick={() => {
                                 let matchingAlert = alertOptions?.find(
                                   (alert) => alert.label === option.label,
@@ -7169,11 +7191,12 @@ export const View = () => {
                           .map((option) => (
                             <div
                               key={option.value}
-                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
+                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                                selectedAlertOption &&
                                 selectedAlertOption.label === option.label
-                                ? "bg-orange-100 border-l-3 border-orange-500"
-                                : "hover:bg-orange-25 hover:bg-opacity-50"
-                                }`}
+                                  ? "bg-orange-100 border-l-3 border-orange-500"
+                                  : "hover:bg-orange-25 hover:bg-opacity-50"
+                              }`}
                               onClick={() => {
                                 let matchingAlert = alertOptions?.find(
                                   (alert) => alert.label === option.label,
@@ -7245,11 +7268,12 @@ export const View = () => {
                           .map((option) => (
                             <div
                               key={option.value}
-                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
+                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                                selectedAlertOption &&
                                 selectedAlertOption.label === option.label
-                                ? "bg-blue-100 border-l-3 border-blue-500"
-                                : "hover:bg-blue-25 hover:bg-opacity-50"
-                                }`}
+                                  ? "bg-blue-100 border-l-3 border-blue-500"
+                                  : "hover:bg-blue-25 hover:bg-opacity-50"
+                              }`}
                               onClick={() => {
                                 let matchingAlert = alertOptions?.find(
                                   (alert) => alert.label === option.label,
@@ -7293,13 +7317,15 @@ export const View = () => {
                                 {option.label}
                               </span>
                               <span
-                                className={`text-xs px-2 py-1 rounded-full font-medium ${option.count > 0
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-gray-100 text-gray-500"
-                                  } ${option.isNewData
+                                className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                  option.count > 0
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-500"
+                                } ${
+                                  option.isNewData
                                     ? "bg-green-100 text-green-600"
                                     : ""
-                                  }`}
+                                }`}
                               >
                                 {option.count}
                               </span>
@@ -7327,11 +7353,12 @@ export const View = () => {
                           .map((option) => (
                             <div
                               key={option.value}
-                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${selectedAlertOption &&
+                              className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-all duration-150 relative ${
+                                selectedAlertOption &&
                                 selectedAlertOption.label === option.label
-                                ? "bg-green-100 border-l-3 border-green-500"
-                                : "hover:bg-green-25 hover:bg-opacity-50"
-                                }`}
+                                  ? "bg-green-100 border-l-3 border-green-500"
+                                  : "hover:bg-green-25 hover:bg-opacity-50"
+                              }`}
                               onClick={() => {
                                 let matchingAlert = alertOptions?.find(
                                   (alert) => alert.label === option.label,
@@ -7375,13 +7402,15 @@ export const View = () => {
                                 {option.label}
                               </span>
                               <span
-                                className={`text-xs px-2 py-1 rounded-full font-medium ${option.count > 0
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-gray-100 text-gray-500"
-                                  } ${option.isNewData
+                                className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                  option.count > 0
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-500"
+                                } ${
+                                  option.isNewData
                                     ? "bg-green-100 text-green-600"
                                     : ""
-                                  }`}
+                                }`}
                               >
                                 {option.count}
                               </span>
@@ -7406,20 +7435,21 @@ export const View = () => {
                             filters.alertType ||
                             filters.location ||
                             filters.status) && (
-                              <Tag color="blue" className="text-xs">
-                                Filtered
-                              </Tag>
-                            )}
+                            <Tag color="blue" className="text-xs">
+                              Filtered
+                            </Tag>
+                          )}
                         </div>
                         <div className="flex items-center">
                           <span className="text-sm text-gray-600">
                             Auto Refresh:
                           </span>
                           <button
-                            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${isPollingEnabled
-                              ? "bg-green-100 text-green-700 hover:bg-green-200"
-                              : "bg-red-100 text-red-700 hover:bg-red-200"
-                              }`}
+                            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                              isPollingEnabled
+                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                : "bg-red-100 text-red-700 hover:bg-red-200"
+                            }`}
                             onClick={() => setIsPollingEnabled((prev) => !prev)}
                           >
                             {isPollingEnabled ? "ON" : "OFF"}
@@ -7435,13 +7465,14 @@ export const View = () => {
                           <Button
                             icon={<FilterOutlined />}
                             size="small"
-                            className={`${filters.vehicleNo ||
+                            className={`${
+                              filters.vehicleNo ||
                               filters.alertType ||
                               filters.location ||
                               filters.status
-                              ? "border-blue-500 text-blue-600"
-                              : ""
-                              }`}
+                                ? "border-blue-500 text-blue-600"
+                                : ""
+                            }`}
                           >
                             Filter
                           </Button>
@@ -7473,10 +7504,10 @@ export const View = () => {
                         forceNoLoading
                           ? false
                           : loading ||
-                          alertCount.length === 0 ||
-                          alertOptions === undefined ||
-                          alertOptions.length === 0 ||
-                          isFiltersLoading
+                            alertCount.length === 0 ||
+                            alertOptions === undefined ||
+                            alertOptions.length === 0 ||
+                            isFiltersLoading
                       }
                       selectedAlert={
                         selectedAlertOption && selectedAlertOption.label
@@ -7510,20 +7541,21 @@ export const View = () => {
                             filters.alertType ||
                             filters.location ||
                             filters.status) && (
-                              <Tag color="blue" className="text-xs">
-                                Filtered
-                              </Tag>
-                            )}
+                            <Tag color="blue" className="text-xs">
+                              Filtered
+                            </Tag>
+                          )}
                         </div>
                         <div className="flex items-center">
                           <span className="text-sm text-gray-600">
                             Auto Refresh:
                           </span>
                           <button
-                            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${isPollingEnabled
-                              ? "bg-green-100 text-green-700 hover:bg-green-200"
-                              : "bg-red-100 text-red-700 hover:bg-red-200"
-                              }`}
+                            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                              isPollingEnabled
+                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                : "bg-red-100 text-red-700 hover:bg-red-200"
+                            }`}
                             onClick={() => setIsPollingEnabled((prev) => !prev)}
                           >
                             {isPollingEnabled ? "ON" : "OFF"}
@@ -7539,13 +7571,14 @@ export const View = () => {
                           <Button
                             icon={<FilterOutlined />}
                             size="small"
-                            className={`${filters.vehicleNo ||
+                            className={`${
+                              filters.vehicleNo ||
                               filters.alertType ||
                               filters.location ||
                               filters.status
-                              ? "border-blue-500 text-blue-600"
-                              : ""
-                              }`}
+                                ? "border-blue-500 text-blue-600"
+                                : ""
+                            }`}
                           >
                             Filter
                           </Button>

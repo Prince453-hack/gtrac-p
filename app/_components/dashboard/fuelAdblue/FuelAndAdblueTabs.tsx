@@ -283,7 +283,11 @@ export const FuelAdblueTabs = ({
     useLazyGetSearchVhlDataQuery();
 
   useEffect(() => {
-    if (Number(userId) === 833916 && groupId && data?.vId) {
+    if (
+      (Number(userId) === 833916 || Number(userId) === 833193) &&
+      groupId &&
+      data?.vId
+    ) {
       getSearchVhlData({
         token: String(groupId),
         vehreg: String(data.vId),
@@ -532,7 +536,8 @@ export const FuelAdblueTabs = ({
   const fuelCapacity = data.vehicleFuelCapacity ?? 0;
 
   const getLastFuelFromData = () => {
-    const isSpecialUser = Number(userId) === 833193 || Number(userId) === 833913;
+    const isSpecialUser =
+      Number(userId) === 833193 || Number(userId) === 833913;
 
     if (fuelTrackingData?.list && isSpecialUser) {
       const fuelLevelEntries = fuelTrackingData.list
@@ -815,7 +820,10 @@ export const FuelAdblueTabs = ({
 
   // Process new fuel tracking data
   useEffect(() => {
-    if (fuelTrackingData?.list && (Number(userId) === 833193 || Number(userId) === 833913)) {
+    if (
+      fuelTrackingData?.list &&
+      (Number(userId) === 833193 || Number(userId) === 833913)
+    ) {
       // Process fuel filling events (only "Fuel Filling" entries)
       const fillingEvents = fuelTrackingData.list
         .filter((item: any) => item.fueltype === "Fuel Filling")
@@ -1153,15 +1161,17 @@ export const FuelAdblueTabs = ({
           {type === "fuel" ? (
             <div className="bg-black text-white shadow-inner py-1.5 px-2 rounded-sm">
               Fuel:{" "}
-              {Number(userId) === 833916
+              {Number(userId) === 833916 || Number(userId) === 833193
                 ? (() => {
-                    const pct = searchData?.list?.[0]?.gpsDtl?.fuel ?? data.gpsDtl.fuel ?? 0;
-                    const capacity = data.vehicleFuelCapacity ?? 0;
-                    const liters = (pct / 100) * capacity;
-                    return liters.toFixed(0);
+                    const pct =
+                      searchData?.list?.[0]?.gpsDtl?.fuel ??
+                      data.gpsDtl.fuel ??
+                      0;
+                    return pct.toFixed(0);
                   })()
                 : actualFuel &&
-                  (typeof actualFuel === "number" || !isNaN(Number(actualFuel)))
+                    (typeof actualFuel === "number" ||
+                      !isNaN(Number(actualFuel)))
                   ? Number(actualFuel).toFixed(0)
                   : 0}{" "}
               L

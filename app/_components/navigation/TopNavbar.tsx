@@ -405,7 +405,7 @@ export const TopNavbar = ({
     if (auth.accessLabel === 6) {
       try {
         await axios.get(
-          `https://yatayaat.in/ses_alert/unhealthy.php?Group_id=${groupId}`,
+          `${process.env.NEXT_PUBLIC_YATAYAAT}/ses_alert/unhealthy.php?Group_id=${groupId}`,
         );
       } catch (Err) {
         console.log("");
@@ -508,7 +508,7 @@ export const TopNavbar = ({
                 />
               ) : eventsData && eventsData.logo ? (
                 eventsData.extension === "png" ||
-                  eventsData.extension === "jpg" ? (
+                eventsData.extension === "jpg" ? (
                   <div className="max-w-[80px] max-h-[30px] object-contain">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -564,12 +564,12 @@ export const TopNavbar = ({
           ) : (
             <>
               {VehicleListType === "trip" ||
-                VehicleListType === "vehicle-allocation-trip" ? (
+              VehicleListType === "vehicle-allocation-trip" ? (
                 <>
                   <Tooltip title="Create Trip" mouseEnterDelay={1}>
                     {userId ===
-                      87162 ? null : createTripOrPlanningTripActive ===
-                        "create-trip" ? (
+                    87162 ? null : createTripOrPlanningTripActive ===
+                      "create-trip" ? (
                       <Image
                         src={createTripIconGreen}
                         width={22}
@@ -605,8 +605,8 @@ export const TopNavbar = ({
                   </Tooltip>
                   <Tooltip title="Plan Trip" mouseEnterDelay={1}>
                     {userId ===
-                      87162 ? null : createTripOrPlanningTripActive ===
-                        "trip-planning" ? (
+                    87162 ? null : createTripOrPlanningTripActive ===
+                      "trip-planning" ? (
                       <Image
                         src={tripPlanningIconGreen}
                         width={22}
@@ -644,7 +644,7 @@ export const TopNavbar = ({
               ) : null}
               {path === "/dashboard" ? (
                 VehicleListType === "trip" ||
-                  VehicleListType === "vehicle-allocation-trip" ? (
+                VehicleListType === "vehicle-allocation-trip" ? (
                   <Tooltip title="Vehicle Listing" mouseEnterDelay={1}>
                     <div
                       className="cursor-pointer hover:filter hover:brightness-95 transition-all duration-300 relative right-10"
@@ -670,34 +670,34 @@ export const TopNavbar = ({
                       />
                     </div>
                   </Tooltip>
-                ) : (
-                  Number(userId) === 833815 || Number(userId) === 833879 ? null : (
-                    <Tooltip title="Trip System" mouseEnterDelay={1}>
-                      <div
-                        className="cursor-pointer hover:filter hover:brightness-95 transition-all duration-300 relative right-10"
-                        onClick={() => {
-                          resetDashboardAndTripSystemState(dispatch);
-                          dispatch(setVehicleDetailsStatus({ type: "trip" }));
-                          dispatch(
-                            setCreateTripOrTripPlanningActive({ type: "" }),
-                          );
-                          dispatch(setIsLoadingScreenActive(true));
-                          dispatch(setHistoryReplayModeToggle(true));
-                          setTimeout(
-                            () => dispatch(setIsLoadingScreenActive(false)),
-                            1,
-                          );
-                        }}
-                      >
-                        <Image
-                          src={TripSystemIcon}
-                          alt="trip system icon"
-                          height={30}
-                          width={30}
-                        />
-                      </div>
-                    </Tooltip>
-                  )
+                ) : Number(userId) === 833815 ||
+                  Number(userId) === 833879 ||
+                  Number(userId) === 83437 ? null : (
+                  <Tooltip title="Trip System" mouseEnterDelay={1}>
+                    <div
+                      className="cursor-pointer hover:filter hover:brightness-95 transition-all duration-300 relative right-10"
+                      onClick={() => {
+                        resetDashboardAndTripSystemState(dispatch);
+                        dispatch(setVehicleDetailsStatus({ type: "trip" }));
+                        dispatch(
+                          setCreateTripOrTripPlanningActive({ type: "" }),
+                        );
+                        dispatch(setIsLoadingScreenActive(true));
+                        dispatch(setHistoryReplayModeToggle(true));
+                        setTimeout(
+                          () => dispatch(setIsLoadingScreenActive(false)),
+                          1,
+                        );
+                      }}
+                    >
+                      <Image
+                        src={TripSystemIcon}
+                        alt="trip system icon"
+                        height={30}
+                        width={30}
+                      />
+                    </div>
+                  </Tooltip>
                 )
               ) : null}
 
@@ -709,7 +709,7 @@ export const TopNavbar = ({
               <div className="flex items-center gap-3">
                 <div className="mr-10">
                   {poiData?.poi?.length > 0 ||
-                    poiData?.geofenceList?.length > 0 ? (
+                  poiData?.geofenceList?.length > 0 ? (
                     <PoiDropdownSelector />
                   ) : null}
                 </div>
@@ -723,14 +723,14 @@ export const TopNavbar = ({
                   ) : null}
 
                   {path === "/dashboard" &&
-                    (Number(userId) === 3356 ||
-                      Number(userId) === 833193 ||
-                      Number(userId) === 833105 ||
-                      Number(userId) === 81707 ||
-                      Number(userId) === 4343 ||
-                      Number(userId) === 87115 ||
-                      Number(userId) === 833608 ||
-                      Number(userId) === 86693) ? (
+                  (Number(userId) === 3356 ||
+                    Number(userId) === 833193 ||
+                    Number(userId) === 833105 ||
+                    Number(userId) === 81707 ||
+                    Number(userId) === 4343 ||
+                    Number(userId) === 87115 ||
+                    Number(userId) === 833608 ||
+                    Number(userId) === 86693) ? (
                     <FuelSort />
                   ) : null}
                 </div>

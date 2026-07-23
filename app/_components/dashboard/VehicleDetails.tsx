@@ -65,7 +65,7 @@ export const mergeData = (
   data: any[],
   userId: string,
   parentUser: string,
-  extra: string
+  extra: string,
 ) => {
   let mergedData: any[] = [];
   let totalDistance = 0;
@@ -90,10 +90,10 @@ export const mergeData = (
           isNaN(Number(extra)) || Number(extra) === 0
             ? mergedData[mergedData.length - 1].totalDistance
             : (
-              (mergedData[mergedData.length - 1].totalDistance *
-                Number(extra)) /
-              100
-            ).toFixed(2),
+                (mergedData[mergedData.length - 1].totalDistance *
+                  Number(extra)) /
+                100
+              ).toFixed(2),
         totalTimeInMIN:
           mergedData[mergedData.length - 1].totalTimeInMIN +
           value.totalTimeInMIN,
@@ -101,16 +101,17 @@ export const mergeData = (
     } else {
       mergedData.push({
         ...value,
-        totalDistance: `${isNaN(Number(extra)) || Number(extra) === 0
-          ? Number(value?.totalDistance.split(" ")[0])
-          : Number(
-            (
-              Number(value?.totalDistance.split(" ")[0]) +
-              (Number(value?.totalDistance.split(" ")[0]) * Number(extra)) /
-              100
-            ).toFixed(2)
-          )
-          } KM`,
+        totalDistance: `${
+          isNaN(Number(extra)) || Number(extra) === 0
+            ? Number(value?.totalDistance.split(" ")[0])
+            : Number(
+                (
+                  Number(value?.totalDistance.split(" ")[0]) +
+                  (Number(value?.totalDistance.split(" ")[0]) * Number(extra)) /
+                    100
+                ).toFixed(2),
+              )
+        } KM`,
       });
     }
   });
@@ -142,13 +143,13 @@ export const updateVehicleItnaryWithPath = ({
       vehicleListDataArgs.data,
       userId,
       parentUser,
-      extra
+      extra,
     );
     let adjustpathwithDateData = mergeData(
       pathwithDateDataArgs.data,
       userId,
       parentUser,
-      extra
+      extra,
     );
 
     dispatch(
@@ -165,7 +166,7 @@ export const updateVehicleItnaryWithPath = ({
         calculatedTotalDistance: Number(adjustpathwithDateData.totalDistance),
         runningTime: pathwithDateDataArgs.runningTime,
         stoppageTime: pathwithDateDataArgs.stoppageTime,
-      })
+      }),
     );
   } else if (vehicleListDataArgs && !pathwithDateDataArgs) {
     dispatch(setLiveVehicleItnaryWithPath(liveVehicleInitialState));
@@ -174,7 +175,7 @@ export const updateVehicleItnaryWithPath = ({
       vehicleListDataArgs.data,
       userId,
       parentUser,
-      extra
+      extra,
     );
     dispatch(
       setVehicleItnaryWithPath({
@@ -190,7 +191,7 @@ export const updateVehicleItnaryWithPath = ({
         calculatedTotalDistance: 0,
         runningTime: vehicleItnaryWithPath.runningTime,
         stoppageTime: vehicleItnaryWithPath.stoppageTime,
-      })
+      }),
     );
   }
   dispatch(setIsVehicleDetailsCollapsed(false));
@@ -201,7 +202,7 @@ export const getStartEndDate = (
   type: "start" | "end",
   format: string,
   returnType: "not touched" | "date",
-  vehicleListType: "trip" | "vehicle" | "video" | "vehicle-allocation-trip"
+  vehicleListType: "trip" | "vehicle" | "video" | "vehicle-allocation-trip",
 ) => {
   if (type === "start") {
     if (
@@ -256,34 +257,36 @@ export const VehicleDetails = () => {
   const { reportsModalState } = useContext(VehicleDetailsContext);
 
   const { type: createTripOrPlanningTripActive } = useSelector(
-    (state: RootState) => state.createTripOrPlanningTripActive
+    (state: RootState) => state.createTripOrPlanningTripActive,
   );
   const collapseVehicleStatusToggle = useSelector(
-    (state: RootState) => state.collapseVehicleStatusToggle
+    (state: RootState) => state.collapseVehicleStatusToggle,
   );
   const collapseTripStatusToggle = useSelector(
-    (state: RootState) => state.collapseTripStatusToggle
+    (state: RootState) => state.collapseTripStatusToggle,
   );
   const vehicleItnaryWithPath = useSelector(
-    (state: RootState) => state.vehicleItnaryWithPath
+    (state: RootState) => state.vehicleItnaryWithPath,
   );
   const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle
+    (state: RootState) => state.selectedVehicle,
   );
   const historyReplay = useSelector((state: RootState) => state.historyReplay);
   const { groupId, userId, accessLabel, parentUser, extra } = useSelector(
-    (state: RootState) => state.auth
+    (state: RootState) => state.auth,
   );
-  const hideVehicleHeaderTools = [833879, 833925, 833923, 833924, 833926].includes(Number(userId));
+  const hideVehicleHeaderTools = [
+    833879, 833925, 833923, 833924, 833926,
+  ].includes(Number(userId));
   const { dateRangeForDataFetching } = useSelector(
-    (state: RootState) => state.customRange
+    (state: RootState) => state.customRange,
   );
   const selectedDashboardVehicle = useSelector(
-    (state: RootState) => state.selectedDashboardVehicle
+    (state: RootState) => state.selectedDashboardVehicle,
   );
   const markers = useSelector((state: RootState) => state.markers);
   const { type: vehicleListType } = useSelector(
-    (state: RootState) => state.isVehicleStatusOrTripStatusActive
+    (state: RootState) => state.isVehicleStatusOrTripStatusActive,
   );
   const [visibleDetailsStyling, setVisibleDetailsStyling] = useState("");
   const [vehicleDetailsUpdateTime, setVehicleDetailsUpdateTime] =
@@ -296,7 +299,7 @@ export const VehicleDetails = () => {
   const effectiveVIdForQueries =
     (vehicleListType === "trip" ||
       vehicleListType === "vehicle-allocation-trip") &&
-      selectedTrip.sys_service_id
+    selectedTrip.sys_service_id
       ? selectedTrip.sys_service_id
       : selectedVehicle.vId;
 
@@ -340,7 +343,7 @@ export const VehicleDetails = () => {
         userId: userId,
         vId:
           vehicleListType === "trip" ||
-            vehicleListType === "vehicle-allocation-trip"
+          vehicleListType === "vehicle-allocation-trip"
             ? effectiveVIdForQueries
             : accessLabel === 6
               ? getNormalOrControllerId(selectedVehicle, userId)
@@ -352,14 +355,14 @@ export const VehicleDetails = () => {
           "start",
           "YYYY-MM-DD HH:mm",
           "date",
-          vehicleListType
+          vehicleListType,
         ),
         endDate: getStartEndDate(
           selectedTrip.trip_complted_datebysystem,
           "end",
           "YYYY-MM-DD HH:mm",
           "date",
-          vehicleListType
+          vehicleListType,
         ),
         requestFor: 0,
       },
@@ -378,19 +381,19 @@ export const VehicleDetails = () => {
             moment(new Date(selectedTrip.departure_date)).isValid() &&
             moment(new Date(selectedTrip.departure_date)).isBefore(
               [2024, 10, 21],
-              "year"
+              "year",
             )) ||
           (vehicleListType === "vehicle-allocation-trip" &&
             moment(new Date(selectedTrip.departure_date)).isValid() &&
             moment(new Date(selectedTrip.departure_date)).isBefore(
               [2024, 10, 21],
-              "year"
+              "year",
             )),
         pollingInterval: 0,
         refetchOnFocus: false,
         refetchOnMountOrArgChange: false,
         refetchOnReconnect: false,
-      }
+      },
     );
 
   const vId =
@@ -411,14 +414,14 @@ export const VehicleDetails = () => {
           "start",
           "YYYY-MM-DD HH:mm",
           "date",
-          vehicleListType
+          vehicleListType,
         ),
         endDate: getStartEndDate(
           selectedTrip.trip_complted_datebysystem,
           "end",
           "YYYY-MM-DD HH:mm",
           "date",
-          vehicleListType
+          vehicleListType,
         ),
         userId: userId,
       },
@@ -439,19 +442,19 @@ export const VehicleDetails = () => {
             moment(new Date(selectedTrip.departure_date)).isValid() &&
             moment(new Date(selectedTrip.departure_date)).isBefore(
               [2024, 10, 21],
-              "year"
+              "year",
             )) ||
           (vehicleListType === "vehicle-allocation-trip" &&
             moment(new Date(selectedTrip.departure_date)).isValid() &&
             moment(new Date(selectedTrip.departure_date)).isBefore(
               [2024, 10, 21],
-              "year"
+              "year",
             )),
         pollingInterval: 0,
         refetchOnFocus: false,
         refetchOnMountOrArgChange: false,
         refetchOnReconnect: false,
-      }
+      },
     );
 
   const [getPathWithDateDaignostic] = useLazyGetpathwithDateDaignosticQuery();
@@ -464,7 +467,7 @@ export const VehicleDetails = () => {
       const effectiveVId =
         (vehicleListType === "trip" ||
           vehicleListType === "vehicle-allocation-trip") &&
-          selectedTrip.sys_service_id
+        selectedTrip.sys_service_id
           ? selectedTrip.sys_service_id
           : selectedVehicle.vId;
 
@@ -474,14 +477,14 @@ export const VehicleDetails = () => {
           "start",
           "YYYY-MM-DD HH:mm",
           "date",
-          vehicleListType
+          vehicleListType,
         ),
         endDate: getStartEndDate(
           selectedTrip.trip_complted_datebysystem,
           "end",
           "YYYY-MM-DD HH:mm",
           "date",
-          vehicleListType
+          vehicleListType,
         ),
         userId: Number(userId),
         vehicleId: Number(effectiveVId),
@@ -499,13 +502,13 @@ export const VehicleDetails = () => {
           moment(new Date(selectedTrip.departure_date)).isValid() &&
           moment(new Date(selectedTrip.departure_date)).isBefore(
             [2024, 10, 21],
-            "year"
+            "year",
           )) ||
         (vehicleListType === "vehicle-allocation-trip" &&
           moment(new Date(selectedTrip.departure_date)).isValid() &&
           moment(new Date(selectedTrip.departure_date)).isBefore(
             [2024, 10, 21],
-            "year"
+            "year",
           ))
       ) {
         dispatch(setPrevVehicleSelected(effectiveVId));
@@ -514,7 +517,7 @@ export const VehicleDetails = () => {
           userId: userId,
           vId:
             vehicleListType === "trip" ||
-              vehicleListType === "vehicle-allocation-trip"
+            vehicleListType === "vehicle-allocation-trip"
               ? effectiveVId
               : accessLabel === 6
                 ? getNormalOrControllerId(selectedVehicle, userId)
@@ -526,14 +529,14 @@ export const VehicleDetails = () => {
             "start",
             "YYYY-MM-DD HH:mm",
             "date",
-            vehicleListType
+            vehicleListType,
           ),
           endDate: getStartEndDate(
             selectedTrip.trip_complted_datebysystem,
             "end",
             "YYYY-MM-DD HH:mm",
             "date",
-            vehicleListType
+            vehicleListType,
           ),
           requestFor: 0,
         }).then(({ data: vehicleListDataArgs }) => {
@@ -559,7 +562,7 @@ export const VehicleDetails = () => {
             getPathWithDateDaignosticOBD({
               vId:
                 vehicleListType === "trip" ||
-                  vehicleListType === "vehicle-allocation-trip"
+                vehicleListType === "vehicle-allocation-trip"
                   ? effectiveVId
                   : accessLabel === 6
                     ? getNormalOrControllerId(selectedVehicle, userId)
@@ -571,14 +574,14 @@ export const VehicleDetails = () => {
                 "start",
                 "YYYY-MM-DD HH:mm",
                 "date",
-                vehicleListType
+                vehicleListType,
               ),
               enddate: getStartEndDate(
                 selectedTrip.trip_complted_datebysystem,
                 "end",
                 "YYYY-MM-DD HH:mm",
                 "date",
-                vehicleListType
+                vehicleListType,
               ),
               requestfor: 0,
               userid: Number(userId),
@@ -604,9 +607,9 @@ export const VehicleDetails = () => {
                     : false,
                   data: pathwithDateDataArgs
                     ? pathwithDateDataArgs.data.map((item: any) => ({
-                      ...item,
-                      totalTime: String(item.totalTime), // Convert number to string
-                    }))
+                        ...item,
+                        totalTime: String(item.totalTime), // Convert number to string
+                      }))
                     : [],
                   fromTime: pathwithDateDataArgs
                     ? pathwithDateDataArgs.fromTime
@@ -647,12 +650,12 @@ export const VehicleDetails = () => {
                   fuelarray: [],
                   totalFuelConsumedT:
                     pathwithDateDataArgs &&
-                      typeof pathwithDateDataArgs.totalFuelConsumedT === "number"
+                    typeof pathwithDateDataArgs.totalFuelConsumedT === "number"
                       ? pathwithDateDataArgs.totalFuelConsumedT
                       : 0,
                   totalmileage:
                     pathwithDateDataArgs &&
-                      typeof pathwithDateDataArgs.totalmileage === "string"
+                    typeof pathwithDateDataArgs.totalmileage === "string"
                       ? Number(pathwithDateDataArgs.totalmileage)
                       : 0,
                 },
@@ -673,7 +676,7 @@ export const VehicleDetails = () => {
             getPathWithDateDaignostic({
               vId:
                 vehicleListType === "trip" ||
-                  vehicleListType === "vehicle-allocation-trip"
+                vehicleListType === "vehicle-allocation-trip"
                   ? effectiveVId
                   : accessLabel === 6
                     ? getNormalOrControllerId(selectedVehicle, userId)
@@ -685,14 +688,14 @@ export const VehicleDetails = () => {
                 "start",
                 "YYYY-MM-DD HH:mm",
                 "date",
-                vehicleListType
+                vehicleListType,
               ),
               endDate: getStartEndDate(
                 selectedTrip.trip_complted_datebysystem,
                 "end",
                 "YYYY-MM-DD HH:mm",
                 "date",
-                vehicleListType
+                vehicleListType,
               ),
               userId: userId,
             }).then(({ data: pathwithDateDataArgs }) => {
@@ -754,13 +757,13 @@ export const VehicleDetails = () => {
                     : [],
                   totalFuelConsumedT:
                     pathwithDateDataArgs &&
-                      typeof pathwithDateDataArgs.totalFuelConsumedT === "number"
+                    typeof pathwithDateDataArgs.totalFuelConsumedT === "number"
                       ? pathwithDateDataArgs.totalFuelConsumedT
                       : 0,
 
                   totalmileage:
                     pathwithDateDataArgs &&
-                      typeof pathwithDateDataArgs.totalmileage === "number"
+                    typeof pathwithDateDataArgs.totalmileage === "number"
                       ? pathwithDateDataArgs.totalmileage
                       : 0,
                 },
@@ -800,12 +803,12 @@ export const VehicleDetails = () => {
       (vehicleListType === "trip" &&
         moment(new Date(selectedTrip.departure_date)).isBefore(
           [2024, 10, 21],
-          "year"
+          "year",
         ) === false) ||
       (vehicleListType === "vehicle-allocation-trip" &&
         moment(new Date(selectedTrip.departure_date)).isBefore(
           [2024, 10, 21],
-          "year"
+          "year",
         ) === false)
     ) {
       getPathWithDateDaignosticAndGetVehicleListItinerary();
@@ -824,7 +827,7 @@ export const VehicleDetails = () => {
     const effectiveVId =
       (vehicleListType === "trip" ||
         vehicleListType === "vehicle-allocation-trip") &&
-        selectedTrip.sys_service_id
+      selectedTrip.sys_service_id
         ? selectedTrip.sys_service_id
         : selectedVehicle.vId;
 
@@ -834,14 +837,14 @@ export const VehicleDetails = () => {
         "start",
         "YYYY-MM-DD HH:mm",
         "date",
-        vehicleListType
+        vehicleListType,
       ),
       endDate: getStartEndDate(
         selectedTrip.trip_complted_datebysystem,
         "end",
         "YYYY-MM-DD HH:mm",
         "date",
-        vehicleListType
+        vehicleListType,
       ),
       userId: Number(userId),
       vehicleId: Number(effectiveVId),
@@ -882,7 +885,7 @@ export const VehicleDetails = () => {
           fuelarray: pathwithDateData ? pathwithDateData.fuelarray : [],
           totalFuelConsumedT:
             pathwithDateData &&
-              typeof pathwithDateData.totalFuelConsumedT === "number"
+            typeof pathwithDateData.totalFuelConsumedT === "number"
               ? pathwithDateData.totalFuelConsumedT
               : 0,
           totalmileage:
@@ -912,8 +915,8 @@ export const VehicleDetails = () => {
       (query) =>
         query &&
         query.endpointName === "getVehicleCurrentLocation" &&
-        query.status === "pending"
-    )
+        query.status === "pending",
+    ),
   );
 
   useEffect(() => {
@@ -928,13 +931,13 @@ export const VehicleDetails = () => {
       (query) =>
         query &&
         query.endpointName === "getpathwithDateDaignostic" &&
-        query.status === "pending"
-    )
+        query.status === "pending",
+    ),
   );
 
   useEffect(() => {
     setVehicleDetailsUpdateTime(
-      moment(new Date()).format("Do MMM, YYYY HH:mm:ss")
+      moment(new Date()).format("Do MMM, YYYY HH:mm:ss"),
     );
   }, [isDiagnosticDataPending]);
 
@@ -976,11 +979,11 @@ export const VehicleDetails = () => {
               dispatch(
                 trackingDashboard.util.invalidateTags([
                   "Vehicles-List-By-Status",
-                ])
+                ]),
               );
               setTimeout(
                 () => dispatch(setIsVehicleDetailsCollapsed(false)),
-                1
+                1,
               );
               dispatch(removeSelectedVehicle());
               dispatch(setIsGetNearbyVehiclesActive(false));
@@ -991,23 +994,23 @@ export const VehicleDetails = () => {
                       selectedDashboardVehicle.find(
                         (selectedDashboardVehicle) =>
                           selectedDashboardVehicle.vehicleData.vId ===
-                          marker.vId
+                          marker.vId,
                       )
                         ? { ...marker, visibility: true }
-                        : { ...marker, visibility: false }
-                    )
-                  )
+                        : { ...marker, visibility: false },
+                    ),
+                  ),
                 );
               } else {
                 dispatch(
                   setAllMarkers(
-                    markers.map((marker) => ({ ...marker, visibility: true }))
-                  )
+                    markers.map((marker) => ({ ...marker, visibility: true })),
+                  ),
                 );
               }
               // trip system state update
               dispatch(
-                setSelectedVehicleBySelectElement(initialSelectedVehicleState)
+                setSelectedVehicleBySelectElement(initialSelectedVehicleState),
               );
               dispatch(setCreateTripOrTripPlanningActive({ type: "" }));
             }}
@@ -1019,7 +1022,7 @@ export const VehicleDetails = () => {
 
       <div className="px-5">
         {vehicleListType === "trip" ||
-          vehicleListType === "vehicle-allocation-trip" ? (
+        vehicleListType === "vehicle-allocation-trip" ? (
           <div className="w-[calc(100%-4px)] ml-0.5 mt-2 mb-[18px] rounded-md p-2 h-[38px] text-base bg-white">
             {selectedTrip.sys_service_id ? (
               <div className="flex justify-between px-2">
@@ -1029,7 +1032,7 @@ export const VehicleDetails = () => {
                     "start",
                     "Do MMM, YYYY HH:mm",
                     "date",
-                    vehicleListType
+                    vehicleListType,
                   )}
                 </p>{" "}
                 -{" "}
@@ -1039,7 +1042,7 @@ export const VehicleDetails = () => {
                     "end",
                     " Do MMM, YYYY HH:mm",
                     "not touched",
-                    vehicleListType
+                    vehicleListType,
                   )}
                 </p>
               </div>
@@ -1057,8 +1060,8 @@ export const VehicleDetails = () => {
         distance={vehicleItnaryWithPath.totalDistance || "0"}
       />
       {selectedVehicle.gpsDtl.fuel &&
-        selectedVehicle.gpsDtl.fuel <= 100 &&
-        selectedVehicle.gpsDtl.port !== 31500 ? null : (
+      selectedVehicle.gpsDtl.fuel <= 100 &&
+      selectedVehicle.gpsDtl.port !== 31500 ? null : (
         <>
           <div className="px-6 pb-4 pt-1">
             <div className="flex items-center">
@@ -1066,106 +1069,124 @@ export const VehicleDetails = () => {
               <Tooltip
                 title={
                   accessLabel === 6 &&
-                    getLatestGPSTime(selectedVehicle) === "GPS" &&
-                    selectedVehicle.GPSInfo.gps_fix === 1
+                  getLatestGPSTime(selectedVehicle) === "GPS" &&
+                  selectedVehicle.GPSInfo.gps_fix === 1
                     ? selectedVehicle.GPSInfo.addr?.replaceAll("_", " ")
                     : accessLabel === 6 &&
-                      getLatestGPSTime(selectedVehicle) === "GPS" &&
-                      selectedVehicle.GPSInfo.gps_fix !== 1
+                        getLatestGPSTime(selectedVehicle) === "GPS" &&
+                        selectedVehicle.GPSInfo.gps_fix !== 1
                       ? selectedVehicle.GPSInfo.addr?.replaceAll("_", " ") ||
-                      selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
-                        "_",
-                        " "
-                      ) ||
-                      "No GPS Fix"
-                      : accessLabel === 6 &&
-                        selectedVehicle.ELOCKInfo &&
-                        getLatestGPSTime(selectedVehicle) === "ELOCK" &&
-                        selectedVehicle.ELOCKInfo.gps_fix === 1
-                        ? selectedVehicle.ELOCKInfo.addr?.replaceAll("_", " ") ||
                         selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                           "_",
-                          " "
-                        )
-                        : accessLabel === 6 &&
+                          " ",
+                        ) ||
+                        "No GPS Fix"
+                      : accessLabel === 6 &&
                           selectedVehicle.ELOCKInfo &&
                           getLatestGPSTime(selectedVehicle) === "ELOCK" &&
-                          selectedVehicle.ELOCKInfo.gps_fix !== 1
-                          ? selectedVehicle.ELOCKInfo.addr?.replaceAll("_", " ") ||
+                          selectedVehicle.ELOCKInfo.gps_fix === 1
+                        ? selectedVehicle.ELOCKInfo.addr?.replaceAll(
+                            "_",
+                            " ",
+                          ) ||
                           selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                             "_",
-                            " "
-                          ) ||
-                          "No GPS Fix"
-                          : accessLabel === 6
-                            ? selectedVehicle.GPSInfo.addr?.replaceAll("_", " ") ||
+                            " ",
+                          )
+                        : accessLabel === 6 &&
+                            selectedVehicle.ELOCKInfo &&
+                            getLatestGPSTime(selectedVehicle) === "ELOCK" &&
+                            selectedVehicle.ELOCKInfo.gps_fix !== 1
+                          ? selectedVehicle.ELOCKInfo.addr?.replaceAll(
+                              "_",
+                              " ",
+                            ) ||
                             selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                               "_",
-                              " "
-                            )
+                              " ",
+                            ) ||
+                            "No GPS Fix"
+                          : accessLabel === 6
+                            ? selectedVehicle.GPSInfo.addr?.replaceAll(
+                                "_",
+                                " ",
+                              ) ||
+                              selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
+                                "_",
+                                " ",
+                              )
                             : selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
-                              "_",
-                              " "
-                            )
+                                "_",
+                                " ",
+                              )
                 }
                 mouseEnterDelay={1}
               >
                 <div className=" cursor-pointer font-semibold text-base">
                   {accessLabel === 6 &&
-                    getLatestGPSTime(selectedVehicle) === "GPS" &&
-                    selectedVehicle.GPSInfo.gps_fix === 1
+                  getLatestGPSTime(selectedVehicle) === "GPS" &&
+                  selectedVehicle.GPSInfo.gps_fix === 1
                     ? (
-                      selectedVehicle.GPSInfo.addr?.replaceAll("_", " ") ||
-                      selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
-                        "_",
-                        " "
-                      )
-                    )?.slice(0, 40)
-                    : accessLabel === 6 &&
-                      getLatestGPSTime(selectedVehicle) === "GPS" &&
-                      selectedVehicle.GPSInfo.gps_fix !== 1
-                      ? (
                         selectedVehicle.GPSInfo.addr?.replaceAll("_", " ") ||
                         selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                           "_",
-                          " "
-                        ) ||
-                        "No GPS Fix"
+                          " ",
+                        )
                       )?.slice(0, 40)
-                      : accessLabel === 6 &&
-                        selectedVehicle.ELOCKInfo &&
-                        getLatestGPSTime(selectedVehicle) === "ELOCK" &&
-                        selectedVehicle.ELOCKInfo.gps_fix === 1
-                        ? (
-                          selectedVehicle.ELOCKInfo.addr?.replaceAll("_", " ") ||
+                    : accessLabel === 6 &&
+                        getLatestGPSTime(selectedVehicle) === "GPS" &&
+                        selectedVehicle.GPSInfo.gps_fix !== 1
+                      ? (
+                          selectedVehicle.GPSInfo.addr?.replaceAll("_", " ") ||
                           selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                             "_",
-                            " "
-                          )
+                            " ",
+                          ) ||
+                          "No GPS Fix"
                         )?.slice(0, 40)
-                        : accessLabel === 6 &&
+                      : accessLabel === 6 &&
                           selectedVehicle.ELOCKInfo &&
                           getLatestGPSTime(selectedVehicle) === "ELOCK" &&
-                          selectedVehicle.ELOCKInfo.gps_fix !== 1
-                          ? (
-                            selectedVehicle.ELOCKInfo.addr?.replaceAll("_", " ") ||
+                          selectedVehicle.ELOCKInfo.gps_fix === 1
+                        ? (
+                            selectedVehicle.ELOCKInfo.addr?.replaceAll(
+                              "_",
+                              " ",
+                            ) ||
                             selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                               "_",
-                              " "
-                            ) ||
-                            "No GPS Fix"
+                              " ",
+                            )
                           )?.slice(0, 40)
-                          : accessLabel === 6
-                            ? (
-                              selectedVehicle.GPSInfo.addr?.replaceAll("_", " ") ||
+                        : accessLabel === 6 &&
+                            selectedVehicle.ELOCKInfo &&
+                            getLatestGPSTime(selectedVehicle) === "ELOCK" &&
+                            selectedVehicle.ELOCKInfo.gps_fix !== 1
+                          ? (
+                              selectedVehicle.ELOCKInfo.addr?.replaceAll(
+                                "_",
+                                " ",
+                              ) ||
                               selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
                                 "_",
-                                " "
-                              )
+                                " ",
+                              ) ||
+                              "No GPS Fix"
                             )?.slice(0, 40)
+                          : accessLabel === 6
+                            ? (
+                                selectedVehicle.GPSInfo.addr?.replaceAll(
+                                  "_",
+                                  " ",
+                                ) ||
+                                selectedVehicle.gpsDtl.latLngDtl.addr?.replaceAll(
+                                  "_",
+                                  " ",
+                                )
+                              )?.slice(0, 40)
                             : selectedVehicle.gpsDtl.latLngDtl.addr
-                              ?.replaceAll("_", " ")
-                              .slice(0, 40)}
+                                ?.replaceAll("_", " ")
+                                .slice(0, 40)}
                   {selectedVehicle.gpsDtl.latLngDtl.addr?.length > 40
                     ? "..."
                     : ""}
@@ -1175,13 +1196,13 @@ export const VehicleDetails = () => {
             <div className="ml-10 -mt-2 text-sm  text-neutral-500">
               Updated At:{" "}
               {accessLabel === 6 &&
-                selectedVehicle.ELOCKInfo &&
-                selectedVehicle.ELOCKInfo.gpstime
+              selectedVehicle.ELOCKInfo &&
+              selectedVehicle.ELOCKInfo.gpstime
                 ? getLatestGPSTime(selectedVehicle) === "GPS"
                   ? selectedVehicle.GPSInfo?.gpstime
                   : selectedVehicle.ELOCKInfo?.gpstime
                 : selectedVehicle.gpsDtl?.latLngDtl?.gpstime ||
-                moment(new Date()).format("Do MMM, YYYY HH:mm")}
+                  moment(new Date()).format("Do MMM, YYYY HH:mm")}
             </div>
           </div>
 
@@ -1190,9 +1211,9 @@ export const VehicleDetails = () => {
       )}
 
       {selectedVehicle.gpsDtl.fuel &&
-        selectedVehicle.gpsDtl.fuel <= 100 &&
-        Number(userId) !== 833193 &&
-        selectedVehicle.gpsDtl.port !== 31500 ? (
+      selectedVehicle.gpsDtl.fuel <= 100 &&
+      Number(userId) !== 833193 &&
+      selectedVehicle.gpsDtl.port !== 31500 ? (
         <div className="mt-2">
           <VehicleDetailsOverview
             data={vehicleItnaryWithPath}

@@ -31,7 +31,7 @@ export const commentAlertApi = createApi({
   tagTypes: ["Alert-Popup-Insert"],
 
   baseQuery: fetchBaseQuery({
-    baseUrl: "https://yatayaat.in/reactapi/",
+    baseUrl: `${process.env.NEXT_PUBLIC_YATAYAAT}/reactapi/`,
   }),
   endpoints: (builder) => ({
     insertAlertPopup: builder.mutation<

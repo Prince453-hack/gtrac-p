@@ -7,10 +7,12 @@ import { RootState } from "@/app/_globalRedux/store";
 import { useDebounceObj } from "@/app/hooks/useDebounce";
 import { Button, Input, Modal, message, Table } from "antd";
 import { GetAllPoiListResponseList } from "../CustomGoogleMapInstance";
+import { GatewayTripLatestItem } from "@/app/_globalRedux/services/gatewayTripLatest";
 import {
   useLazyEditPOIQuery,
   useUpdateGeofenceMutation,
 } from "@/app/_globalRedux/services/trackingDashboard";
+import { useGetGatewayTripLatestQuery } from "@/app/_globalRedux/services/gatewayTripLatest";
 import { AppDispatch } from "@/app/_globalRedux/store";
 import { isPointInsidePOI } from "@/lib/utils";
 import { useDispatch } from "react-redux";
@@ -27,6 +29,19 @@ import {
   initialPOIDropDownState,
 } from "@/app/_globalRedux/dashboard/poiSlice";
 import { setIsLoadingScreenActive } from "@/app/_globalRedux/dashboard/mapSlice";
+
+type ModalVehicleRow = {
+  lat: number;
+  lng: number;
+  vehicleNumber: string;
+  mode: string;
+  modeTime: string;
+  speed: number;
+  address: string;
+  grNo?: string;
+  billingPartyName?: string;
+  containerId?: string;
+};
 
 // Helper function to call geosync endpoint
 const callGeosyncRadius = async (userId: string | number) => {
@@ -89,6 +104,14 @@ const usePoiRefresh = () => {
   };
 
   return { refreshPoiData, refreshKey };
+};
+
+const normalizeVehicleNumber = (vehicleNumber?: string | null) =>
+  (vehicleNumber || "").trim().toUpperCase();
+
+const getComparableTime = (value?: string) => {
+  const time = Date.parse(value || "");
+  return Number.isNaN(time) ? 0 : time;
 };
 
 const createHtmlLabelMarker = (
@@ -255,21 +278,32 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
   >(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showHelloModal, setShowHelloModal] = useState(false);
-  const [poiForVehicleModal, setPoiForVehicleModal] =
-    useState<(GetAllPoiListResponseList & { points?: any[] }) | null>(null);
+  const [poiForVehicleModal, setPoiForVehicleModal] = useState<
+    (GetAllPoiListResponseList & { points?: any[] }) | null
+  >(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const { refreshPoiData, refreshKey } = usePoiRefresh();
 
   const poiData = useSelector((state: RootState) => state.poiData);
-  const { userId } = useSelector((state: RootState) => state.auth);
+  const { userId, mobileAppToken } = useSelector(
+    (state: RootState) => state.auth,
+  );
   const selectedPOIIds = poiData.selectedPOIList || [];
   const { isManualEditMode, editingPOI } = poiData;
+  const isUser5275 = String(userId) === "5275";
+
+  const { data: gatewayTripLatestData } = useGetGatewayTripLatestQuery(
+    { token: mobileAppToken || "" },
+    {
+      skip: !isUser5275 || !mobileAppToken,
+    },
+  );
 
   const markers = useSelector((state: RootState) => state.markers);
 
-  const allCoordinates = markers.map((vehicle) => {
+  const allCoordinates: ModalVehicleRow[] = markers.map((vehicle) => {
     // @ts-ignore - addr property exists in runtime but not in type definition
     const address = vehicle.gpsDtl.latLngDtl.addr || "N/A";
     return {
@@ -282,6 +316,30 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
       address,
     };
   });
+
+  const gatewayTripLatestByVehicleNo = useMemo(() => {
+    const tripMap = new Map<string, GatewayTripLatestItem>();
+
+    gatewayTripLatestData?.list?.forEach((trip) => {
+      const vehicleNumber = normalizeVehicleNumber(trip.vehicle_no);
+      if (!vehicleNumber) return;
+
+      const existingTrip = tripMap.get(vehicleNumber);
+      if (!existingTrip) {
+        tripMap.set(vehicleNumber, trip);
+        return;
+      }
+
+      if (
+        getComparableTime(trip.timeupdate) >=
+        getComparableTime(existingTrip.timeupdate)
+      ) {
+        tripMap.set(vehicleNumber, trip);
+      }
+    });
+
+    return tripMap;
+  }, [gatewayTripLatestData]);
 
   const vehiclesInsideSelectedPOIs = useMemo(() => {
     if (!window.google || !selectedPOIIds.length) return [];
@@ -311,6 +369,25 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
       isPointInsidePOI(vehicle, poiForVehicleModal as any),
     );
   }, [poiForVehicleModal, allCoordinates]);
+
+  const vehiclesInsideModalPOIWithTripData = useMemo<ModalVehicleRow[]>(() => {
+    if (!isUser5275) return vehiclesInsideModalPOI;
+
+    return vehiclesInsideModalPOI.map((vehicle) => {
+      const trip = gatewayTripLatestByVehicleNo.get(
+        normalizeVehicleNumber(vehicle.vehicleNumber),
+      );
+
+      return {
+        ...vehicle,
+        grNo: trip?.gr_no || "N/A",
+        billingPartyName: trip?.billing_party_name || "N/A",
+        containerId: trip?.container_no || "N/A",
+      };
+    });
+  }, [isUser5275, vehiclesInsideModalPOI, gatewayTripLatestByVehicleNo]);
+
+  const vehicleModalWidth = isUser5275 ? 1180 : 850;
 
   const visiblePoi = useMemo(() => {
     return poiData?.poi?.filter((item) => {
@@ -622,7 +699,7 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                 };
 
                 // Sort vehicles by mode time (longest first)
-                const sortedVehicles = [...vehiclesInsideModalPOI].sort(
+                const sortedVehicles = [...vehiclesInsideModalPOIWithTripData].sort(
                   (a, b) => {
                     const aMinutes = parseDurationToMinutes(a.modeTime || "");
                     const bMinutes = parseDurationToMinutes(b.modeTime || "");
@@ -631,24 +708,48 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                 );
 
                 // Create CSV content
-                const headers = [
-                  "Sr. No",
-                  "Vehicle No",
-                  "Mode",
-                  "Mode Time",
-                  "Location",
-                ];
+                const headers = isUser5275
+                  ? [
+                      "Sr. No",
+                      "Vehicle No",
+                      "GR No.",
+                      "Billing Party Name",
+                      "Container Id",
+                      "Mode",
+                      "Mode Time",
+                      "Location",
+                    ]
+                  : [
+                      "Sr. No",
+                      "Vehicle No",
+                      "Mode",
+                      "Mode Time",
+                      "Location",
+                    ];
                 const csvContent = [
                   headers.join(","),
-                  ...sortedVehicles.map((v, index) =>
-                    [
+                  ...sortedVehicles.map((v, index) => {
+                    const baseColumns = [
                       index + 1,
                       `"${v.vehicleNumber || "Unknown Vehicle"}"`,
+                    ];
+
+                    const tripColumns = isUser5275
+                      ? [
+                          `"${v.grNo || "N/A"}"`,
+                          `"${v.billingPartyName || "N/A"}"`,
+                          `"${v.containerId || "N/A"}"`,
+                        ]
+                      : [];
+
+                    return [
+                      ...baseColumns,
+                      ...tripColumns,
                       `"${v.mode || "N/A"}"`,
                       `"${v.modeTime || "N/A"}"`,
                       `"${v.address.split("_").join(" ") || "N/A"}"`,
-                    ].join(","),
-                  ),
+                    ].join(",");
+                  }),
                 ].join("\n");
 
                 // Create and download file
@@ -681,7 +782,7 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
           setPoiForVehicleModal(null);
         }}
         footer={null}
-        width={850}
+        width={vehicleModalWidth}
         style={{ top: 60 }}
       >
         <div style={{ padding: "5px 0" }}>
@@ -708,7 +809,7 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                 };
 
                 // Sort vehicles by mode time (longest first)
-                const sortedVehicles = [...vehiclesInsideModalPOI].sort(
+                const sortedVehicles = [...vehiclesInsideModalPOIWithTripData].sort(
                   (a, b) => {
                     const aMinutes = parseDurationToMinutes(a.modeTime || "");
                     const bMinutes = parseDurationToMinutes(b.modeTime || "");
@@ -728,17 +829,47 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                     dataIndex: "vehicleNumber",
                     key: "vehicleNumber",
                     width: 150,
+                    ellipsis: true,
                     render: (text: string) => (
-                      <span style={{ fontWeight: 500 }}>
+                      <span style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
                         {text || "Unknown Vehicle"}
                       </span>
                     ),
                   },
+                  ...(isUser5275
+                    ? [
+                        {
+                          title: "GR No.",
+                          dataIndex: "grNo",
+                          key: "grNo",
+                          width: 130,
+                          ellipsis: true,
+                          render: (text: string) => text || "N/A",
+                        },
+                        {
+                          title: "Billing Party Name",
+                          dataIndex: "billingPartyName",
+                          key: "billingPartyName",
+                          width: 180,
+                          ellipsis: true,
+                          render: (text: string) => text || "N/A",
+                        },
+                        {
+                          title: "Container Id",
+                          dataIndex: "containerId",
+                          key: "containerId",
+                          width: 140,
+                          ellipsis: true,
+                          render: (text: string) => text || "N/A",
+                        },
+                      ]
+                    : []),
                   {
                     title: "Mode",
                     dataIndex: "mode",
                     key: "mode",
                     width: 100,
+                    ellipsis: true,
                     render: (mode: string) => (
                       <span
                         style={{
@@ -760,13 +891,15 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                     dataIndex: "modeTime",
                     key: "modeTime",
                     width: 120,
+                    ellipsis: true,
                     render: (text: string) => text || "N/A",
                   },
                   {
                     title: "Location",
                     key: "location",
+                    ellipsis: true,
                     render: (_: any, record: any) => (
-                      <span style={{ fontSize: 12 }}>
+                      <span style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                         {record.address.split("_").join(" ") || "N/A"}
                       </span>
                     ),
@@ -780,7 +913,8 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                     rowKey={(record) => record.vehicleNumber || Math.random()}
                     pagination={false}
                     size="small"
-                    scroll={{ y: 400 }}
+                    tableLayout="fixed"
+                    scroll={{ x: isUser5275 ? 1060 : 700, y: 400 }}
                   />
                 );
               })()
@@ -1070,15 +1204,15 @@ const PoiDetailsModal = ({
   const latLng =
     poiData.points && poiData.points.length > 0
       ? poiData.points.map((p) => ({
-        lat: p.gps_latitude.toFixed(6),
-        lng: p.gps_longitude.toFixed(6),
-      }))
+          lat: p.gps_latitude.toFixed(6),
+          lng: p.gps_longitude.toFixed(6),
+        }))
       : [
-        {
-          lat: poiData.gps_latitude.toFixed(6),
-          lng: poiData.gps_longitude.toFixed(6),
-        },
-      ];
+          {
+            lat: poiData.gps_latitude.toFixed(6),
+            lng: poiData.gps_longitude.toFixed(6),
+          },
+        ];
 
   return (
     <Modal

@@ -437,17 +437,11 @@ const AlertNotifications = ({
     if (!activeToken) return;
 
     let isActive = true;
-    let timeoutId: NodeJS.Timeout;
-    let consecutiveFalseCount = 0;
 
-    const poll = async () => {
-      if (!isActive) return;
-      if (consecutiveFalseCount >= 10) return;
-
-      let nextPollDelay = 1000;
+    const fetchAlerts = async () => {
       try {
         const res = await fetch(
-          `https://yatayaat.in/reactapi/alerts_popups.php?token=${activeToken}`
+          `${process.env.NEXT_PUBLIC_YATAYAAT_API}/reactapi/alerts_popups.php?token=${activeToken}`,
         );
         const text = await res.text();
         const trimmed = text.trim();
@@ -455,14 +449,12 @@ const AlertNotifications = ({
         if (!isActive) return;
 
         if (trimmed === "false") {
-          consecutiveFalseCount++;
+          setLongPollNormalAlerts([]);
         } else {
-          consecutiveFalseCount = 0;
           try {
             const parsed = JSON.parse(trimmed);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setLongPollNormalAlerts(parsed);
-              nextPollDelay = 30000;
             } else {
               setLongPollNormalAlerts([]);
             }
@@ -472,18 +464,15 @@ const AlertNotifications = ({
         }
       } catch (err) {
         // Fail silently
-      } finally {
-        if (isActive && consecutiveFalseCount < 10) {
-          timeoutId = setTimeout(poll, nextPollDelay);
-        }
       }
     };
 
-    poll();
+    fetchAlerts();
+    const intervalId = setInterval(fetchAlerts, 5 * 60 * 1000); // Poll every 5 minutes
 
     return () => {
       isActive = false;
-      clearTimeout(timeoutId);
+      clearInterval(intervalId);
     };
   }, [activeToken]);
 
@@ -731,7 +720,9 @@ const AlertNotifications = ({
       const filteredNormalAlerts =
         longPollNormalAlerts && !longPollNormalAlerts[0]?.status
           ? checkIfIsWithinThirtyMinutesFor833193(
-              checkIfIsWhithinFifteenMinutesForGatewayrail(longPollNormalAlerts),
+              checkIfIsWhithinFifteenMinutesForGatewayrail(
+                longPollNormalAlerts,
+              ),
             )
           : [];
 
@@ -766,7 +757,8 @@ const AlertNotifications = ({
           ? alertsPanicRes.length
           : 0) +
         (longPollNormalAlerts && !longPollNormalAlerts[0]?.status
-          ? checkIfIsWhithinFifteenMinutesForGatewayrail(longPollNormalAlerts).length
+          ? checkIfIsWhithinFifteenMinutesForGatewayrail(longPollNormalAlerts)
+              .length
           : 0) +
         (alertsFuelRes && !alertsFuelRes[0]?.status ? alertsFuelRes.length : 0);
     }

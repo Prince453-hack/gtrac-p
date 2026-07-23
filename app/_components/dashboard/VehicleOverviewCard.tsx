@@ -71,7 +71,89 @@ export const VehicleOverviewCard = ({
 }: {
   vehicleData: VehicleData;
 }) => {
-  const currentModeArr = vehicleData.gpsDtl.mode.split("");
+  const targetStatusInfo = useMemo(() => {
+    const gpsInfo = vehicleData.GPSInfo as any;
+    const elockInfo = vehicleData.ELOCKInfo as any;
+
+    const hasSpaceA = (info: any): boolean => {
+      const reg = info?.vehReg;
+      return typeof reg === "string" && /\s+A/i.test(reg);
+    };
+
+    const isAvailable = (info: any): boolean => {
+      return Boolean(
+        info &&
+        (info.vehId || info.vId || info.vehReg || info.mode || info.gpstime),
+      );
+    };
+
+    const isWorking = (info: any): boolean => {
+      return isAvailable(info) && info.gps_fix !== 0;
+    };
+
+    const gpsAvailable = isAvailable(gpsInfo);
+    const elockAvailable = isAvailable(elockInfo);
+
+    const gpsHasA = hasSpaceA(gpsInfo);
+    const elockHasA = hasSpaceA(elockInfo);
+
+    const extractInfo = (info: any) => ({
+      mode: (info?.mode || vehicleData.gpsDtl.mode || "").toString(),
+      modeTime: (
+        info?.modetimenew ||
+        info?.modeTime ||
+        info?.modetime ||
+        vehicleData.gpsDtl.modeTime ||
+        ""
+      ).toString(),
+      speed:
+        typeof info?.speed === "number" ? info.speed : vehicleData.gpsDtl.speed,
+    });
+
+    if (!gpsAvailable && !elockAvailable) {
+      return {
+        mode: vehicleData.gpsDtl.mode,
+        modeTime: vehicleData.gpsDtl.modeTime,
+        speed: vehicleData.gpsDtl.speed,
+      };
+    }
+
+    let nonADevice: any = null;
+    let aDevice: any = null;
+
+    if (gpsAvailable && !gpsHasA) nonADevice = gpsInfo;
+    else if (gpsAvailable && gpsHasA) aDevice = gpsInfo;
+
+    if (elockAvailable && !elockHasA && !nonADevice) nonADevice = elockInfo;
+    else if (elockAvailable && elockHasA && !aDevice) aDevice = elockInfo;
+
+    // 1. By default show the status of which is not space A if working
+    if (nonADevice && isWorking(nonADevice)) {
+      return extractInfo(nonADevice);
+    }
+
+    // 2. If that is not working, then show A one if working
+    if (aDevice && isWorking(aDevice)) {
+      return extractInfo(aDevice);
+    }
+
+    // 3. If both are not working, then show not A one
+    if (nonADevice) {
+      return extractInfo(nonADevice);
+    }
+
+    if (aDevice) {
+      return extractInfo(aDevice);
+    }
+
+    return {
+      mode: vehicleData.gpsDtl.mode,
+      modeTime: vehicleData.gpsDtl.modeTime,
+      speed: vehicleData.gpsDtl.speed,
+    };
+  }, [vehicleData]);
+
+  const currentModeArr = (targetStatusInfo.mode || "STOPPED").split("");
   const selectedVehicle = useSelector(
     (state: RootState) => state.selectedVehicle,
   );
@@ -87,9 +169,7 @@ export const VehicleOverviewCard = ({
   const [lastValidPOI, setLastValidPOI] = useState<string>("");
 
   // Fetch ambulance data for user 833193
-  const {
-    data: ambulanceData,
-  } = useGetAmbulanceEmployeesQuery(undefined, {
+  const { data: ambulanceData } = useGetAmbulanceEmployeesQuery(undefined, {
     skip: Number(auth.userId) !== 833193,
   });
 
@@ -588,8 +668,9 @@ export const VehicleOverviewCard = ({
         : vehicleData.gpsDtl.mode;
 
   const shouldShowStoppedSince =
-    vehicleData.ELOCKInfo.mode === "STOPPED" || vehicleData.GPSInfo.mode === "STOPPED" &&
-    vehicleData.gpsDtl.ignState?.toLowerCase() === "off";
+    vehicleData.ELOCKInfo.mode === "STOPPED" ||
+    (vehicleData.GPSInfo.mode === "STOPPED" &&
+      vehicleData.gpsDtl.ignState?.toLowerCase() === "off");
 
   return (
     <div className="relative select-none ">
@@ -605,11 +686,11 @@ export const VehicleOverviewCard = ({
 
       <div>
         {auth.accessLabel === 6 &&
-          vehicleData.ELOCKInfo &&
-          vehicleData.ELOCKInfo.Unhealthy &&
-          vehicleData.ELOCKInfo.Unhealthy.data &&
-          Array.isArray(vehicleData.ELOCKInfo.Unhealthy.data) &&
-          vehicleData.ELOCKInfo.Unhealthy.data[0] == 1 ? (
+        vehicleData.ELOCKInfo &&
+        vehicleData.ELOCKInfo.Unhealthy &&
+        vehicleData.ELOCKInfo.Unhealthy.data &&
+        Array.isArray(vehicleData.ELOCKInfo.Unhealthy.data) &&
+        vehicleData.ELOCKInfo.Unhealthy.data[0] == 1 ? (
           <Tooltip
             title={vehicleData.ELOCKInfo.UnhealthyDesc!}
             placement="rightTop"
@@ -652,7 +733,7 @@ export const VehicleOverviewCard = ({
                   : "1.5px solid transparent",
               background:
                 vehicleData.gpsDtl.immoblizeStatus == 1 &&
-                  !isKmtAccount(Number(auth.userId), Number(auth.parentUser))
+                !isKmtAccount(Number(auth.userId), Number(auth.parentUser))
                   ? "white"
                   : "white",
             },
@@ -711,21 +792,21 @@ export const VehicleOverviewCard = ({
                   </p>
                 )}
 
-                {vehicleData.gpsDtl.mode !== "RUNNING" &&
-                  !isCheckInAccount(Number(auth.userId)) &&
-                  vehicleData.gpsDtl.speed === 0 ? (
+                {targetStatusInfo.mode.toUpperCase() !== "RUNNING" &&
+                !isCheckInAccount(Number(auth.userId)) &&
+                targetStatusInfo.speed === 0 ? (
                   <p className="text-xs font-bold text-red-600">
                     {shouldShowStoppedSince
                       ? "Stopped since: "
                       : shouldShowNotWorkingHours
                         ? "Not Working Hours: "
                         : `${currentModeArr[0]}${currentModeArr
-                          .slice(1, currentModeArr.length)
-                          .join("")
-                          .toLowerCase()} since: `}
+                            .slice(1, currentModeArr.length)
+                            .join("")
+                            .toLowerCase()} since: `}
                     <span className="font-bold">
                       {shouldShowStoppedSince || !shouldShowNotWorkingHours
-                        ? vehicleData.gpsDtl.modeTime
+                        ? targetStatusInfo.modeTime
                         : `${vehicleData.gpsDtl.notworkingHrs} hrs`}
                     </span>
                   </p>
@@ -762,7 +843,7 @@ export const VehicleOverviewCard = ({
                   <Elock data={vehicleData} />
                   <BreathAnalyzer data={vehicleData} />
                   <Padlock data={vehicleData} />
-                  <DTC data={vehicleData} />
+                  <DTC data={vehicleData} /> 
                   <Passenger data={vehicleData} />
                   <Fuel data={vehicleData} />
 
@@ -770,40 +851,44 @@ export const VehicleOverviewCard = ({
                     vehicleData.gpsDtl.model &&
                     (!isNaN(Number(vehicleData.gpsDtl.model)) ||
                       vehicleData.gpsDtl.model.includes("##BSJ"))) ||
-                    (vehicleData.gpsDtl.model &&
-                      vehicleData.gpsDtl.model.includes("##BSJ")) ? (
+                  (vehicleData.gpsDtl.model &&
+                    vehicleData.gpsDtl.model.includes("##BSJ")) ? (
                     <Tooltip
-                      title={`${vehicleData.gpsDtl.model &&
+                      title={`${
+                        vehicleData.gpsDtl.model &&
                         vehicleData.gpsDtl.model.includes("##BSJ")
-                        ? `BSJ Vehicle - ${isBSJVehicleOnline === null
-                          ? "Checking status..."
-                          : isBSJVehicleOnline
-                            ? "Online"
-                            : "Offline"
-                        }`
-                        : `Video Telematics - ${isDeviceOnline === null
-                          ? "Checking status..."
-                          : isDeviceOnline
-                            ? "Online"
-                            : "Offline"
-                        }`
-                        }`}
+                          ? `BSJ Vehicle - ${
+                              isBSJVehicleOnline === null
+                                ? "Checking status..."
+                                : isBSJVehicleOnline
+                                  ? "Online"
+                                  : "Offline"
+                            }`
+                          : `Video Telematics - ${
+                              isDeviceOnline === null
+                                ? "Checking status..."
+                                : isDeviceOnline
+                                  ? "Online"
+                                  : "Offline"
+                            }`
+                      }`}
                       mouseEnterDelay={2}
                     >
                       <div
-                        className={`px-1 py-0.5 relative ${vehicleData.gpsDtl.model &&
+                        className={`px-1 py-0.5 relative ${
+                          vehicleData.gpsDtl.model &&
                           vehicleData.gpsDtl.model.includes("##BSJ")
-                          ? isBSJVehicleOnline === null
-                            ? "text-gray-600"
-                            : isBSJVehicleOnline
-                              ? " text-green-50"
-                              : " text-red-600"
-                          : isDeviceOnline === null
-                            ? "text-gray-600"
-                            : isDeviceOnline
-                              ? " text-green-50"
-                              : " text-red-600"
-                          }`}
+                            ? isBSJVehicleOnline === null
+                              ? "text-gray-600"
+                              : isBSJVehicleOnline
+                                ? " text-green-50"
+                                : " text-red-600"
+                            : isDeviceOnline === null
+                              ? "text-gray-600"
+                              : isDeviceOnline
+                                ? " text-green-50"
+                                : " text-red-600"
+                        }`}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (selectedVehicle.vId !== vehicleData.vId) {
@@ -825,7 +910,7 @@ export const VehicleOverviewCard = ({
                         <VideoCameraTwoTone
                           twoToneColor={
                             vehicleData.gpsDtl.model &&
-                              vehicleData.gpsDtl.model.includes("##BSJ")
+                            vehicleData.gpsDtl.model.includes("##BSJ")
                               ? isBSJVehicleOnline === null
                                 ? "#6B7280"
                                 : isBSJVehicleOnline
@@ -843,12 +928,12 @@ export const VehicleOverviewCard = ({
                           vehicleData.gpsDtl.model.includes("##BSJ") &&
                           isBSJVehicleOnline) ||
                           (auth.isVideoTelematics && isDeviceOnline)) && (
-                            <div className="absolute -top-0.5 -right-0.5">
-                              <div className="w-2 h-2 bg-red-500 rounded-full border border-white" />
+                          <div className="absolute -top-0.5 -right-0.5">
+                            <div className="w-2 h-2 bg-red-500 rounded-full border border-white" />
 
-                              <div className="absolute inset-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />
-                            </div>
-                          )}
+                            <div className="absolute inset-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                          </div>
+                        )}
                       </div>
                     </Tooltip>
                   ) : null}
@@ -890,9 +975,7 @@ export const VehicleOverviewCard = ({
               <div className="font-bold text-gray-600 w-6 relative overflow-visible">
                 <Tooltip
                   title={
-                    getGpsLocation()
-                      ? "GPS location"
-                      : "GPS location not fixed"
+                    getGpsLocation() ? "GPS location" : "GPS location not fixed"
                   }
                   placement="left"
                   mouseEnterDelay={1}
@@ -923,24 +1006,25 @@ export const VehicleOverviewCard = ({
                 mouseEnterDelay={1}
               >
                 <p
-                  className={`text-sm  truncate w-[310px]  ${getLatestGPSTime(vehicleData) === "GPS"
-                    ? "text-primary-green"
-                    : ""
-                    }`}
+                  className={`text-sm  truncate w-[310px]  ${
+                    getLatestGPSTime(vehicleData) === "GPS"
+                      ? "text-primary-green"
+                      : ""
+                  }`}
                 >
                   {auth.accessLabel === 6 &&
-                    !showCabinWarningInElock &&
-                    isHourAgo(
-                      vehicleData.GPSInfo?.gpstime ||
+                  !showCabinWarningInElock &&
+                  isHourAgo(
+                    vehicleData.GPSInfo?.gpstime ||
                       vehicleData.gpsDtl.latLngDtl.gpstime,
-                    )
+                  )
                     ? "Cabin device not working"
                     : getGpsLocation()}
                 </p>
               </Tooltip>
             </div>
             {auth.accessLabel === 6 &&
-              (vehicleData.ELOCKInfo?.addr || vehicleData.GPSInfo?.addr) ? (
+            (vehicleData.ELOCKInfo?.addr || vehicleData.GPSInfo?.addr) ? (
               <div className="flex items-center gap-1 mb-1">
                 <div className="font-bold text-gray-600 w-6 relative">
                   <Tooltip
@@ -964,20 +1048,21 @@ export const VehicleOverviewCard = ({
                   mouseEnterDelay={1}
                 >
                   <p
-                    className={`text-sm  truncate w-[310px]  ${getLatestGPSTime(vehicleData) === "ELOCK"
-                      ? "text-primary-green"
-                      : ""
-                      }`}
+                    className={`text-sm  truncate w-[310px]  ${
+                      getLatestGPSTime(vehicleData) === "ELOCK"
+                        ? "text-primary-green"
+                        : ""
+                    }`}
                   >
                     {auth.accessLabel === 6 &&
-                      (showCabinWarningInElock
-                        ? isHourAgo(
+                    (showCabinWarningInElock
+                      ? isHourAgo(
                           vehicleData.GPSInfo?.gpstime ||
-                          vehicleData.gpsDtl.latLngDtl.gpstime,
+                            vehicleData.gpsDtl.latLngDtl.gpstime,
                         )
-                        : isHourAgo(
+                      : isHourAgo(
                           vehicleData.ELOCKInfo?.gpstime ||
-                          vehicleData.gpsDtl.latLngDtl.gpstime,
+                            vehicleData.gpsDtl.latLngDtl.gpstime,
                         ))
                       ? "Elock Device not working"
                       : getElockLocation()}
@@ -992,7 +1077,7 @@ export const VehicleOverviewCard = ({
                   <Tooltip
                     title={
                       Number(auth.userId) === 87364 ||
-                        Number(auth.parentUser) === 87364
+                      Number(auth.parentUser) === 87364
                         ? "Geofence"
                         : "POI"
                     }
@@ -1018,8 +1103,8 @@ export const VehicleOverviewCard = ({
             )}
 
             {isCheckInAccount(Number(auth.userId)) ? null : Number(
-              auth.userId,
-            ) === 833193 ? (
+                auth.userId,
+              ) === 833193 ? (
               <div className="flex items-center gap-1 mb-1">
                 <div className="font-bold text-gray-600 w-6 ">
                   <Tooltip title="Driver" placement="left" mouseEnterDelay={1}>
@@ -1034,8 +1119,9 @@ export const VehicleOverviewCard = ({
                 <div className="flex gap-2 truncate w-[310px]">
                   <div className="flex flex-col">
                     <Tooltip
-                      title={`${getCurrentDriverForAmbulance()?.name || "No Driver"
-                        }`}
+                      title={`${
+                        getCurrentDriverForAmbulance()?.name || "No Driver"
+                      }`}
                       placement="right"
                       mouseEnterDelay={1}
                     >
@@ -1048,9 +1134,10 @@ export const VehicleOverviewCard = ({
                     </Tooltip>
                     {getCurrentDriverForAmbulance()?.employeeSystemId && (
                       <Tooltip
-                        title={`Employee ID: ${getCurrentDriverForAmbulance()?.employeeSystemId ||
+                        title={`Employee ID: ${
+                          getCurrentDriverForAmbulance()?.employeeSystemId ||
                           "N/A"
-                          }`}
+                        }`}
                         placement="right"
                         mouseEnterDelay={1}
                       >
@@ -1099,8 +1186,9 @@ export const VehicleOverviewCard = ({
                     </Tooltip>
                     {getCurrentEmtForAmbulance()?.employeeSystemId && (
                       <Tooltip
-                        title={`Employee ID: ${getCurrentEmtForAmbulance()?.employeeSystemId || "N/A"
-                          }`}
+                        title={`Employee ID: ${
+                          getCurrentEmtForAmbulance()?.employeeSystemId || "N/A"
+                        }`}
                         placement="right"
                         mouseEnterDelay={1}
                       >
@@ -1199,10 +1287,11 @@ export const VehicleOverviewCard = ({
             <div className="flex mt-4 w-full text-center overflow-hidden relative">
               <div className="flex items-center bg-white h-[84px] mr-2 z-10">
                 <div
-                  className={`hover:opacity-50 ${overviewSliderStyle === 0
-                    ? "opacity-50 cursor-not-allowed"
-                    : "opacity-100 cursor-pointer"
-                    }transition-opacity duration-300`}
+                  className={`hover:opacity-50 ${
+                    overviewSliderStyle === 0
+                      ? "opacity-50 cursor-not-allowed"
+                      : "opacity-100 cursor-pointer"
+                  }transition-opacity duration-300`}
                   onClick={(e) => {
                     handleLeftClick(e);
                   }}
@@ -1215,16 +1304,18 @@ export const VehicleOverviewCard = ({
                 <div
                   className="flex gap-4 text-center overflow-hidden w-[100%] relative"
                   style={{
-                    transform: `${maxSliderValue <= 260
-                      ? "translateX(0px)"
-                      : `translateX(${overviewSliderStyle}px)`
-                      }`,
+                    transform: `${
+                      maxSliderValue <= 260
+                        ? "translateX(0px)"
+                        : `translateX(${overviewSliderStyle}px)`
+                    }`,
                     transition: "transform 0.3s ease",
                   }}
                 >
                   <a
-                    href={`https://www.google.com/maps/search/${getGpsCoordinates().lat
-                      },${getGpsCoordinates().lng}`}
+                    href={`https://www.google.com/maps/search/${
+                      getGpsCoordinates().lat
+                    },${getGpsCoordinates().lng}`}
                     target="_blank"
                     rel="noreferrer"
                     onClick={(e) => {
@@ -1247,8 +1338,8 @@ export const VehicleOverviewCard = ({
                         {checkIfIgnitionOnOrOff({
                           ignitionState:
                             vehicleData.gpsDtl.ignState.toLowerCase() as
-                            | "off"
-                            | "on",
+                              | "off"
+                              | "on",
                           speed: vehicleData.gpsDtl.speed,
                           mode: vehicleData.gpsDtl.mode,
                         }) === "On"
@@ -1260,7 +1351,7 @@ export const VehicleOverviewCard = ({
                     </div>
                   )}
                   {isCheckInAccount(Number(auth.userId)) ||
-                    auth.accessLabel == 4 ? null : (
+                  auth.accessLabel == 4 ? null : (
                     <div className="border border-gray-300 px-2 py-3 rounded-lg text-xs w-20 h-[84px] min-w-[80px]">
                       <div className="font-bold">
                         {vehicleData.gpsDtl.ignState.slice(0, 1).toUpperCase() +
@@ -1271,8 +1362,8 @@ export const VehicleOverviewCard = ({
                   )}
 
                   {auth.isAc &&
-                    !isCheckInAccount(Number(auth.userId)) &&
-                    auth.accessLabel !== 4 ? (
+                  !isCheckInAccount(Number(auth.userId)) &&
+                  auth.accessLabel !== 4 ? (
                     <div className="border border-gray-300 px-2 py-3 rounded-lg text-xs w-20 h-[84px] min-w-[80px]">
                       <div className="font-bold">
                         {vehicleData.gpsDtl.acState}
@@ -1358,12 +1449,14 @@ export const VehicleOverviewCard = ({
                   ) : null} */}
 
                   {auth.isMarketVehicle ||
-                    auth.isPadlock ||
-                    auth.isEveVehicle || Number(auth.userId) === 833087 || Number(auth.userId) === 833895 ? (
+                  auth.isPadlock ||
+                  auth.isEveVehicle ||
+                  Number(auth.userId) === 833087 ||
+                  Number(auth.userId) === 833895 ? (
                     <div className="border border-gray-300 px-2 py-3 rounded-lg text-xs w-20 h-[84px] min-w-[80px]">
                       <div className="font-bold">
                         {Math.floor(vehicleData.gpsDtl.main_powervoltage) >=
-                          12 ? (
+                        12 ? (
                           "100%"
                         ) : Math.floor(vehicleData.gpsDtl.main_powervoltage) ===
                           11 ? (
@@ -1374,7 +1467,7 @@ export const VehicleOverviewCard = ({
                         ) : Math.floor(vehicleData.gpsDtl.main_powervoltage) ===
                           9 ? (
                           Math.floor(vehicleData.gpsDtl.main_powervoltage) ===
-                            8 ? (
+                          8 ? (
                             "20%"
                           ) : Math.floor(vehicleData.gpsDtl.main_powervoltage) <
                             8 ? (
@@ -1400,12 +1493,13 @@ export const VehicleOverviewCard = ({
                       </div>
                       <div className="border border-gray-300 px-2 py-3 rounded-lg text-xs w-20 h-[84px] min-w-[80px]">
                         <div
-                          className={`font-bold ${moment(
-                            vehicleData.gpsDtl.latLngDtl.gpstime,
-                          ).date() === moment().date()
-                            ? "text-primary-green"
-                            : "text-red-700"
-                            }`}
+                          className={`font-bold ${
+                            moment(
+                              vehicleData.gpsDtl.latLngDtl.gpstime,
+                            ).date() === moment().date()
+                              ? "text-primary-green"
+                              : "text-red-700"
+                          }`}
                         >
                           {moment(
                             vehicleData.gpsDtl.latLngDtl.gpstime,
@@ -1414,12 +1508,13 @@ export const VehicleOverviewCard = ({
                             : "Not Checked"}
                         </div>
                         <div
-                          className={`mt-1 ${moment(
-                            vehicleData.gpsDtl.latLngDtl.gpstime,
-                          ).date() === moment().date()
-                            ? "text-primary-green"
-                            : "text-red-700"
-                            }`}
+                          className={`mt-1 ${
+                            moment(
+                              vehicleData.gpsDtl.latLngDtl.gpstime,
+                            ).date() === moment().date()
+                              ? "text-primary-green"
+                              : "text-red-700"
+                          }`}
                         >
                           Status
                         </div>
@@ -1428,8 +1523,8 @@ export const VehicleOverviewCard = ({
                   ) : null}
 
                   {auth.isOdometer ||
-                    auth.isEveVehicle ||
-                    Number(auth.userId) === 87056 ? (
+                  auth.isEveVehicle ||
+                  Number(auth.userId) === 87056 ? (
                     <div className="border border-gray-300 px-2 py-3 rounded-lg text-xs w-20 h-[84px] min-w-[80px]">
                       <div className="font-bold">
                         {vehicleData.gpsDtl.tel_odometer
@@ -1449,7 +1544,7 @@ export const VehicleOverviewCard = ({
                   ) : null}
 
                   {Number(auth.userId) === 833188 ||
-                    Number(auth.userId) === 78227 ? (
+                  Number(auth.userId) === 78227 ? (
                     <div className="border border-gray-300 px-2 py-3 rounded-lg text-xs w-20 h-[84px] min-w-[80px]">
                       <div className="font-bold">
                         {(() => {
@@ -1467,10 +1562,11 @@ export const VehicleOverviewCard = ({
               </div>
               <div className="flex items-center bg-white h-[84px] z-10 absolute right-0">
                 <div
-                  className={`hover:opacity-50 ${overviewSliderStyle + maxSliderValue - containerWidth <= 0
-                    ? "opacity-50 cursor-not-allowed"
-                    : "opacity-100 cursor-pointer"
-                    }transition-opacity duration-300`}
+                  className={`hover:opacity-50 ${
+                    overviewSliderStyle + maxSliderValue - containerWidth <= 0
+                      ? "opacity-50 cursor-not-allowed"
+                      : "opacity-100 cursor-pointer"
+                  }transition-opacity duration-300`}
                   onClick={(e) => {
                     handleRightClick(e);
                   }}

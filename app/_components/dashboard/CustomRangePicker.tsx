@@ -50,24 +50,24 @@ const isOBDVehicle = (selectedVehicle: any) => {
 
 export type NoUndefinedRangeValueType<DateType> = [
   start: DateType | null,
-  end: DateType | null
+  end: DateType | null,
 ];
 
 export type RangeValueType<DateType> = [
   start: DateType | null | undefined,
-  end: DateType | null | undefined
+  end: DateType | null | undefined,
 ];
 
 export const CustomRangePicker = () => {
   const [selectOpen, setSelectOpen] = useState(false);
   const vehicleItnaryWithPath = useSelector(
-    (state: RootState) => state.vehicleItnaryWithPath
+    (state: RootState) => state.vehicleItnaryWithPath,
   );
   const { userId, parentUser, extra } = useSelector(
-    (state: RootState) => state.auth
+    (state: RootState) => state.auth,
   );
   const selectedVehicle = useSelector(
-    (state: RootState) => state.selectedVehicle
+    (state: RootState) => state.selectedVehicle,
   );
   const { accessLabel } = useSelector((state: RootState) => state.auth);
 
@@ -123,12 +123,12 @@ export const CustomRangePicker = () => {
       if (isCheckInAccount(Number(userId))) {
         fetchDataOnDataOrVehicleChangeWhenCheckInData(
           dateRangeForDataFetching.startDate,
-          dateRangeForDataFetching.endDate
+          dateRangeForDataFetching.endDate,
         );
       } else {
         fetchDataOnDateOrVehicleChange(
           dateRangeForDataFetching.startDate,
-          dateRangeForDataFetching.endDate
+          dateRangeForDataFetching.endDate,
         );
       }
     }
@@ -137,7 +137,7 @@ export const CustomRangePicker = () => {
 
   const fetchDataOnDateOrVehicleChange = async (
     updatedStartDate?: string,
-    updatedEndDate?: string
+    updatedEndDate?: string,
   ) => {
     dispatch(setVehicleItnaryWithPath(vehicleItnaryWithPathInitialState));
     dispatch(setLiveVehicleItnaryWithPath(liveVehicleInitialState));
@@ -166,13 +166,13 @@ export const CustomRangePicker = () => {
     } = await dispatch(
       trackingDashboard.endpoints.getItineraryvehIdBDateNwSt.initiate(
         dateObject,
-        { subscribe: false, forceRefetch: true }
-      )
+        { subscribe: false, forceRefetch: true },
+      ),
     );
 
     if (itItineraryvehIdBDateNwStData && !itineraryvehIdBDateNwStLoading) {
       adjustedItItineraryvehIdBDateNwStData = structuredClone(
-        itItineraryvehIdBDateNwStData
+        itItineraryvehIdBDateNwStData,
       ); // Deep copy
       let mergedData: any[] = [];
 
@@ -219,7 +219,7 @@ export const CustomRangePicker = () => {
 
       adjustedItItineraryvehIdBDateNwStData.data = isKmtAccount(
         Number(userId),
-        Number(parentUser)
+        Number(parentUser),
       )
         ? adjustedItItineraryvehIdBDateNwStData.data
         : mergedData;
@@ -249,7 +249,7 @@ export const CustomRangePicker = () => {
           stoppageTime: vehicleItnaryWithPathInitialState.stoppageTime,
           patharry: vehicleItnaryWithPathInitialState.patharry,
           fuelarray: vehicleItnaryWithPathInitialState.fuelarray,
-        })
+        }),
       );
     }
 
@@ -296,8 +296,8 @@ export const CustomRangePicker = () => {
       const result = await dispatch(
         trackingDashboard.endpoints.getpathwithDateDaignostic.initiate(
           dateObject,
-          { subscribe: false, forceRefetch: true }
-        )
+          { subscribe: false, forceRefetch: true },
+        ),
       );
       pathwithDateData = result.data;
       pathwithDateLoading = result.isLoading;
@@ -323,7 +323,7 @@ export const CustomRangePicker = () => {
                   Number(value?.totalDistance.split(" ")[0]) +
                     (Number(value?.totalDistance.split(" ")[0]) *
                       Number(extra)) /
-                      100
+                      100,
                 );
           if (adjustedDiagnostic) {
             if (
@@ -350,23 +350,23 @@ export const CustomRangePicker = () => {
                     ? Number(
                         mergedDiagnosticData[
                           mergedDiagnosticData.length - 1
-                        ]?.totalDistance.split(" ")[0]
+                        ]?.totalDistance.split(" ")[0],
                       )
                     : Number(
                         (
                           Number(
                             mergedDiagnosticData[
                               mergedDiagnosticData.length - 1
-                            ]?.totalDistance.split(" ")[0]
+                            ]?.totalDistance.split(" ")[0],
                           ) +
                           (Number(
                             mergedDiagnosticData[
                               mergedDiagnosticData.length - 1
-                            ]?.totalDistance.split(" ")[0]
+                            ]?.totalDistance.split(" ")[0],
                           ) *
                             Number(extra)) /
                             100
-                        ).toFixed(2)
+                        ).toFixed(2),
                       )
                 } KM`,
               };
@@ -382,7 +382,7 @@ export const CustomRangePicker = () => {
                           (Number(value?.totalDistance.split(" ")[0]) *
                             Number(extra)) /
                             100
-                        ).toFixed(2)
+                        ).toFixed(2),
                       )
                 } KM`,
               });
@@ -392,7 +392,7 @@ export const CustomRangePicker = () => {
 
         adjustedDiagnostic.data = isKmtAccount(
           Number(userId),
-          Number(parentUser)
+          Number(parentUser),
         )
           ? adjustedDiagnostic.data
           : mergedDiagnosticData;
@@ -424,14 +424,14 @@ export const CustomRangePicker = () => {
             runningTime: adjustedDiagnostic.runningTime,
             stoppageTime: adjustedDiagnostic.stoppageTime,
             diagnosticData: adjustedDiagnostic.data,
-          })
+          }),
         );
       }
     }
   };
   const fetchDataOnDataOrVehicleChangeWhenCheckInData = async (
     updatedStartDate?: string,
-    updatedEndDate?: string
+    updatedEndDate?: string,
   ) => {
     const payloadObj = {
       userId: Number(userId),
@@ -458,7 +458,7 @@ export const CustomRangePicker = () => {
   let localDateRange = { startDate: "", endDate: "" };
   const getVehicleDetailsByDate = async (
     selectedDateType: string,
-    customDateRange: any
+    customDateRange: any,
   ) => {
     if (selectedDateType === "Today") {
       isTodaySelected.current = true;
@@ -507,10 +507,10 @@ export const CustomRangePicker = () => {
       if (customDateRange) {
         localDateRange = {
           startDate: moment(customDateRange[0]?.toISOString()).format(
-            "YYYY-MM-DD HH:mm"
+            "YYYY-MM-DD HH:mm",
           ),
           endDate: moment(customDateRange[1]?.toISOString()).format(
-            "YYYY-MM-DD HH:mm"
+            "YYYY-MM-DD HH:mm",
           ),
         };
       }
@@ -531,7 +531,7 @@ export const CustomRangePicker = () => {
       setSelectedVehicleCustomDateRange({
         dateRangeToDisplay: {
           startDate: moment(localDateRange.startDate).format(
-            "Do MMM, YYYY HH:mm"
+            "Do MMM, YYYY HH:mm",
           ),
           endDate: moment(localDateRange.endDate).format("Do MMM, YYYY HH:mm"),
         },
@@ -539,18 +539,18 @@ export const CustomRangePicker = () => {
           startDate: localDateRange.startDate,
           endDate: localDateRange.endDate,
         },
-      })
+      }),
     );
 
     if (isCheckInAccount(Number(userId))) {
       fetchDataOnDataOrVehicleChangeWhenCheckInData(
         localDateRange.startDate,
-        localDateRange.endDate
+        localDateRange.endDate,
       );
     } else {
       fetchDataOnDateOrVehicleChange(
         localDateRange.startDate,
-        localDateRange.endDate
+        localDateRange.endDate,
       );
     }
   };

@@ -88,6 +88,7 @@ import { dashcamAlertsApi } from "./services/dashcamAlerts";
 import { ecoTripDetailsApi } from "./services/ecoTripDetails";
 import { fuelAuthApi } from "./services/fuelAuth";
 import { fuelCentralDataApi } from "./services/fuelCentralData";
+import { gatewayTripLatestApi } from "./services/gatewayTripLatest";
 
 export const store = configureStore({
   reducer: {
@@ -177,6 +178,7 @@ export const store = configureStore({
     [ecoTripDetailsApi.reducerPath]: ecoTripDetailsApi.reducer,
     [fuelAuthApi.reducerPath]: fuelAuthApi.reducer,
     [fuelCentralDataApi.reducerPath]: fuelCentralDataApi.reducer,
+    [gatewayTripLatestApi.reducerPath]: gatewayTripLatestApi.reducer,
   },
   devTools: process.env.NODE_ENV !== "production",
   middleware: (getDefaultMiddleware) =>
@@ -220,6 +222,7 @@ export const store = configureStore({
       ecoTripDetailsApi.middleware,
       fuelAuthApi.middleware,
       fuelCentralDataApi.middleware,
+      gatewayTripLatestApi.middleware,
     ]),
 });
 

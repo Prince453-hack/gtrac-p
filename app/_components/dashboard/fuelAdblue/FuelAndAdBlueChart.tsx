@@ -52,6 +52,9 @@ export const vehiclePairs: Record<string, string> = {
   "12448795": "1201000717",
 };
 
+const isSpecialUser = (userId: string | number) =>
+  [833193, 833916, 833863].includes(Number(userId));
+
 type PluginData = {
   event: string | null;
   amountFilled: number | null;
@@ -145,7 +148,7 @@ export const AdblueChart = ({
       type: "line",
       data: {
         labels: chartData.map((d) =>
-          Number(userId) === 833193
+          isSpecialUser(userId)
             ? moment(d.time).format("DD-MM-YYYY HH:mm")
             : d.odometer,
         ),
@@ -200,7 +203,7 @@ export const AdblueChart = ({
           x: {
             title: {
               display: true,
-              text: Number(userId) === 833193 ? "Date" : "Odometer (km)",
+              text: isSpecialUser(userId) ? "Date" : "Odometer (km)",
             },
             grid: { display: false },
           },
@@ -250,16 +253,16 @@ export const FuelChart = ({
   const { userId } = useSelector((state: RootState) => state.auth);
   const windowWidth = useWindowSize().width;
 
-  const isSpecialUser = Number(userId) === 833193;
+  const isSpecialUser = [833193, 833916, 833863].includes(Number(userId));
 
   // Build chart data; the parent component maps fuelData correctly
   const chartData = useMemo(() => {
     return rawData || [];
   }, [rawData]);
 
-  // For user 833193, keep existing logic (computeMetrics)
+  // For special users, keep existing logic (computeMetrics)
   const fuelEvents = useMemo(() => {
-    if (Number(userId) === 833193) {
+    if ([833193, 833916, 833863].includes(Number(userId))) {
       return computeMetrics(chartData, "fuel", 50);
     }
 

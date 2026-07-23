@@ -6,10 +6,12 @@ import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 import { RootState } from "@/app/_globalRedux/store";
 import CustomDatePicker from "@/app/_components/common/datePicker";
+import { calculateFuelMetricsFor833916 } from "@/app/helpers/fuelMetrics833916";
 import {
   useLazyGetEcoTripDetailsQuery,
   EcoTripItem,
 } from "@/app/_globalRedux/services/ecoTripDetails";
+import { useLazyGetRawFuelWithDateEcoQuery } from "@/app/_globalRedux/services/trackingDashboard";
 import { useLazyGetpathwithDateDaignosticQuery } from "@/app/_globalRedux/services/trackingDashboard";
 import dynamic from "next/dynamic";
 
@@ -21,6 +23,21 @@ const TripOverviewMiniMap = dynamic(() => import("./trip-overview-minimap"), {
     </div>
   ),
 });
+
+const vehicles = [
+  {
+    id: 12468461,
+    veh_reg: "HR55AR2293",
+  },
+  {
+    id: 12468886,
+    veh_reg: "HR55AP4746",
+  },
+  {
+    id: 12468887,
+    veh_reg: "HR55AR6112",
+  },
+];
 
 interface TripOverviewClientProps {
   userId?: string;
@@ -59,6 +76,9 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
     },
   ] = useLazyGetpathwithDateDaignosticQuery();
 
+  const [getRawFuelData, { data: rawFuelData, isLoading: isRawFuelLoading }] =
+    useLazyGetRawFuelWithDateEcoQuery();
+
   const { maxSpeed, avgSpeed } = useMemo(() => {
     if (!diagnosticData?.patharry || diagnosticData.patharry.length === 0) {
       return { maxSpeed: "—", avgSpeed: "—" };
@@ -91,32 +111,127 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
       ? dayjs(trip.end_trip).format("YYYY-MM-DD HH:mm")
       : dayjs().format("YYYY-MM-DD HH:mm");
 
+    const matchedVehicle = vehicles.find(
+      (v) => v.veh_reg.toLowerCase() === trip.veh_no?.trim().toLowerCase(),
+    );
+    const resolvedId = matchedVehicle ? matchedVehicle.id : trip.sys_service_id;
+
     getPathDiagnostic({
-      vId: trip.sys_service_id,
+      vId: resolvedId,
       startDate: sDate,
       endDate: eDate,
       userId: activeUserId,
     });
   };
 
+  useEffect(() => {
+    if (!isModalOpen || !selectedTrip?.sys_service_id) {
+      return;
+    }
+
+    const startDate = selectedTrip.trip_started || selectedTrip.Pickup_time;
+    const endDate = selectedTrip.end_trip || dayjs().format("YYYY-MM-DD HH:mm");
+
+    const matchedVehicle = vehicles.find(
+      (v) =>
+        v.veh_reg.toLowerCase() === selectedTrip.veh_no?.trim().toLowerCase(),
+    );
+    const resolvedId = matchedVehicle
+      ? matchedVehicle.id
+      : selectedTrip.sys_service_id;
+
+    getRawFuelData({
+      userId: Number(activeUserId),
+      vehId: resolvedId,
+      startDate: dayjs(startDate).format("YYYY-MM-DD HH:mm"),
+      endDate: dayjs(endDate).format("YYYY-MM-DD HH:mm"),
+      interval: "30",
+    });
+  }, [activeUserId, getRawFuelData, isModalOpen, selectedTrip]);
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedTrip(null);
   };
 
-  const getDuration = (start?: string, end?: string) => {
-    if (!start || !end) return "-";
-    const diffMs = new Date(end).getTime() - new Date(start).getTime();
-    if (diffMs < 0) return "-";
-    const diffMins = Math.floor(diffMs / 60000);
-    const hrs = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+  const distanceTraveled = useMemo(() => {
+    const list = diagnosticData?.patharry ?? [];
+    if (!Array.isArray(list) || list.length === 0) {
+      return null;
+    }
+
+    const firstOdo = Number(list[0]?.tel_odometer ?? 0);
+    const lastOdo = Number(list[list.length - 1]?.tel_odometer ?? 0);
+    return Math.abs(lastOdo - firstOdo);
+  }, [diagnosticData]);
+
+  const isSpecialVehicle = useMemo(() => {
+    return Boolean(
+      selectedTrip?.veh_no &&
+        vehicles.some(
+          (v) =>
+            v.veh_reg.toLowerCase() === selectedTrip.veh_no?.trim().toLowerCase(),
+        ),
+    );
+  }, [selectedTrip]);
+
+  const calculateFuelEconomy = () => {
+    if (isSpecialVehicle) {
+      const { mileage } = calculateFuelMetricsFor833916({
+        pathArray: diagnosticData?.patharry,
+        distance: `${distanceTraveled || 0} KM`,
+        extra: 0,
+      });
+
+      return mileage;
+    }
+
+    const list = rawFuelData?.rawdata ?? [];
+
+    if (!Array.isArray(list) || list.length === 0) {
+      return null;
+    }
+
+    const readings = list
+      .filter(
+        (item: any) =>
+          item.tel_fuel !== undefined &&
+          item.tel_fuel !== null &&
+          item.tel_fuel !== 0,
+      )
+      .map((item: any) => ({
+        fuel: item.tel_fuel ? item.tel_fuel : 0,
+        odometer: item.tel_odometer ? item.tel_odometer.toString() : "0",
+        time: item.gps_time || item.gpstimeformatted,
+      }))
+      .sort(
+        (a: any, b: any) =>
+          new Date(a.time).getTime() - new Date(b.time).getTime(),
+      );
+
+    if (readings.length < 2) {
+      return null;
+    }
+
+    const fuelConsumed = readings[0].fuel - readings[readings.length - 1].fuel;
+
+    if (!isFinite(fuelConsumed) || fuelConsumed <= 0) {
+      return null;
+    }
+
+    const totalDistance = distanceTraveled || 0;
+    if (totalDistance <= 0) {
+      return null;
+    }
+
+    return totalDistance / fuelConsumed;
   };
 
   // Fetch data using RTK lazy query service
   const [trigger, { data, isLoading, isFetching }] =
     useLazyGetEcoTripDetailsQuery();
+
+  const fuelEconomyValue = calculateFuelEconomy();
 
   const handleFetchData = () => {
     const startDateStr = dayjs(dateRange[0]).format("YYYY-MM-DD HH:mm:ss");
@@ -127,7 +242,6 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
     });
   };
 
-  // Run initial fetch on mount
   useEffect(() => {
     handleFetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,55 +277,86 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
     </div>
   );
 
+  const normalizeSearchText = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+
+  const getSearchableRow = (item: EcoTripItem) => {
+    const pickupTime = item.Pickup_time ? dayjs(item.Pickup_time) : null;
+    const tripStarted = item.trip_started ? dayjs(item.trip_started) : null;
+    const endTrip = item.end_trip ? dayjs(item.end_trip) : null;
+
+    const lat = Number(item.Pickup_lat);
+    const lon = Number(item.Pickup_lon);
+    const coordText =
+      Number.isFinite(lat) && Number.isFinite(lon)
+        ? `${lat.toFixed(6)}, ${lon.toFixed(6)} ${lat.toFixed(3)}, ${lon.toFixed(3)}`
+        : "";
+
+    return {
+      veh_no: normalizeSearchText(item.veh_no),
+      Booking_no: normalizeSearchText(item.Booking_no),
+      Pickup_loc: normalizeSearchText(item.Pickup_loc),
+      coords: normalizeSearchText(coordText),
+      Pickup_time: normalizeSearchText(
+        pickupTime
+          ? [
+              pickupTime.format("DD-MMM-YYYY HH:mm:ss"),
+              pickupTime.format("YYYY-MM-DD HH:mm:ss"),
+              pickupTime.format("YYYY-MM-DD HH:mm"),
+            ].join(" ")
+          : "",
+      ),
+      trip_started: normalizeSearchText(
+        tripStarted
+          ? [
+              tripStarted.format("DD-MMM-YYYY HH:mm:ss"),
+              tripStarted.format("YYYY-MM-DD HH:mm:ss"),
+              tripStarted.format("YYYY-MM-DD HH:mm"),
+            ].join(" ")
+          : "",
+      ),
+      end_trip: normalizeSearchText(
+        endTrip
+          ? [
+              endTrip.format("DD-MMM-YYYY HH:mm:ss"),
+              endTrip.format("YYYY-MM-DD HH:mm:ss"),
+              endTrip.format("YYYY-MM-DD HH:mm"),
+            ].join(" ")
+          : "",
+      ),
+    };
+  };
+
   // Locally filtered list based on column search values
   const filteredData = useMemo(() => {
     const list = data?.list || [];
     return list.filter((item) => {
-      const matchVehNo = (item.veh_no || "")
-        .toLowerCase()
-        .includes(filters.veh_no.toLowerCase());
-
-      const matchBooking = (item.Booking_no || "")
-        .toLowerCase()
-        .includes(filters.Booking_no.toLowerCase());
-
-      const matchPickupLoc = (item.Pickup_loc || "")
-        .toLowerCase()
-        .includes(filters.Pickup_loc.toLowerCase());
-
-      const lat =
-        item.Pickup_lat !== undefined && item.Pickup_lat !== null
-          ? item.Pickup_lat.toFixed(6)
-          : "-";
-      const lon =
-        item.Pickup_lon !== undefined && item.Pickup_lon !== null
-          ? item.Pickup_lon.toFixed(6)
-          : "-";
-      const coordsStr = `${lat}, ${lon}`;
-      const matchCoords = coordsStr
-        .toLowerCase()
-        .includes(filters.coords.toLowerCase());
-
-      const formattedPickupTime = item.Pickup_time
-        ? dayjs(item.Pickup_time).format("DD-MMM-YYYY HH:mm:ss")
-        : "";
-      const matchPickupTime = formattedPickupTime
-        .toLowerCase()
-        .includes(filters.Pickup_time.toLowerCase());
-
-      const formattedTripStarted = item.trip_started
-        ? dayjs(item.trip_started).format("DD-MMM-YYYY HH:mm:ss")
-        : "";
-      const matchTripStarted = formattedTripStarted
-        .toLowerCase()
-        .includes(filters.trip_started.toLowerCase());
-
-      const formattedEndTrip = item.end_trip
-        ? dayjs(item.end_trip).format("DD-MMM-YYYY HH:mm:ss")
-        : "";
-      const matchEndTrip = formattedEndTrip
-        .toLowerCase()
-        .includes(filters.end_trip.toLowerCase());
+      const searchableRow = getSearchableRow(item);
+      const matchVehNo = searchableRow.veh_no.includes(
+        normalizeSearchText(filters.veh_no),
+      );
+      const matchBooking = searchableRow.Booking_no.includes(
+        normalizeSearchText(filters.Booking_no),
+      );
+      const matchPickupLoc = searchableRow.Pickup_loc.includes(
+        normalizeSearchText(filters.Pickup_loc),
+      );
+      const matchCoords = searchableRow.coords.includes(
+        normalizeSearchText(filters.coords),
+      );
+      const matchPickupTime = searchableRow.Pickup_time.includes(
+        normalizeSearchText(filters.Pickup_time),
+      );
+      const matchTripStarted = searchableRow.trip_started.includes(
+        normalizeSearchText(filters.trip_started),
+      );
+      const matchEndTrip = searchableRow.end_trip.includes(
+        normalizeSearchText(filters.end_trip),
+      );
 
       return (
         matchVehNo &&
@@ -224,6 +369,17 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
       );
     });
   }, [data, filters]);
+
+  const getRowKey = (record: EcoTripItem, index?: number) =>
+    [
+      record.sys_service_id,
+      record.Booking_no,
+      record.veh_no,
+      record.Pickup_time,
+      record.trip_started,
+      record.end_trip,
+      index ?? 0,
+    ].join("-");
 
   const columns = [
     {
@@ -370,7 +526,7 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
           </div>
         )}
         <Table
-          rowKey={(r) => r.sys_service_id || r.Booking_no}
+          rowKey={getRowKey}
           columns={columns}
           dataSource={filteredData}
           scroll={{ y: "calc(100vh - 280px)" }}
@@ -584,7 +740,9 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
                               </span>
                             </div>
                             <span className="text-sm font-bold text-slate-800">
-                              {diagnosticData?.totalDistance || "—"}
+                              {distanceTraveled !== null
+                                ? `${distanceTraveled.toFixed(2)} km`
+                                : "—"}
                             </span>
                           </div>
 
@@ -692,7 +850,13 @@ const TripOverviewClient: React.FC<TripOverviewClientProps> = ({ userId }) => {
                               </span>
                             </div>
                             <span className="text-sm font-bold text-slate-800">
-                              --
+                              {isDiagLoading ||
+                              isDiagFetching ||
+                              (!isSpecialVehicle && isRawFuelLoading)
+                                ? "--"
+                                : fuelEconomyValue !== null
+                                  ? `${fuelEconomyValue.toFixed(2)} km/L`
+                                  : "--"}
                             </span>
                           </div>
                         </div>

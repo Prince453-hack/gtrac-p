@@ -223,6 +223,20 @@ export const trackingDashboard = createApi({
         `getRawhFuelwithDate?vId=${vehId}&startdate=${startDate}&enddate=${endDate}&requestfor=0&userid=${userId}&interval=${interval}`,
     }),
 
+    getRawFuelWithDateEco: builder.query<
+      GetRawDataWithoutLocationApiResponse,
+      {
+        userId: number;
+        vehId: number;
+        startDate: string;
+        endDate: string;
+        interval: string;
+      }
+    >({
+      query: ({ userId, vehId, startDate, endDate, interval }) =>
+        `getRawhFuelwithDateEco?vId=${vehId}&startdate=${startDate}&enddate=${endDate}&requestfor=0&userid=${userId}&interval=${interval}`,
+    }),
+
     getKuberFuelFillingAndTheft: builder.query<
       GetKuberFuelFillingAndTheftResponse,
       {
@@ -760,6 +774,8 @@ export const {
   useLazyGetRawWithDateQuery,
   useLazyGetRawWithDateWithoutLocationQuery,
   useLazyGetRawFuelWithDateQuery,
+  useGetRawFuelWithDateEcoQuery,
+  useLazyGetRawFuelWithDateEcoQuery,
   useGetKuberFuelFillingAndTheftQuery,
   useLazyGetKuberFuelFillingAndTheftQuery,
   useLazyConvertLatLngToAddressQuery,
