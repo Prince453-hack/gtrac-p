@@ -127,6 +127,10 @@ export const VehicleOverviewCard = ({
     if (elockAvailable && !elockHasA && !nonADevice) nonADevice = elockInfo;
     else if (elockAvailable && elockHasA && !aDevice) aDevice = elockInfo;
 
+    if (gpsInfo?.mode === "NOT WORKING" && elockAvailable) {
+      return extractInfo(elockInfo);
+    }
+
     // 1. By default show the status of which is not space A if working
     if (nonADevice && isWorking(nonADevice)) {
       return extractInfo(nonADevice);
@@ -653,8 +657,10 @@ export const VehicleOverviewCard = ({
   };
 
   const shouldShowNotWorkingHours =
-    vehicleData.GPSInfo?.mode === "NOT WORKING" &&
-    vehicleData.ELOCKInfo?.mode === "NOT WORKING";
+    targetStatusInfo.mode.toUpperCase() === "NOT WORKING" ||
+    vehicleData.gpsDtl.mode.toUpperCase() === "NOT WORKING" ||
+    (vehicleData.GPSInfo?.mode === "NOT WORKING" &&
+      vehicleData.ELOCKInfo?.mode === "NOT WORKING");
 
   const shouldShowStoppedModeColor =
     vehicleData.GPSInfo?.mode === "STOPPED" ||
@@ -794,7 +800,8 @@ export const VehicleOverviewCard = ({
 
                 {targetStatusInfo.mode.toUpperCase() !== "RUNNING" &&
                 !isCheckInAccount(Number(auth.userId)) &&
-                targetStatusInfo.speed === 0 ? (
+                (targetStatusInfo.speed === 0 ||
+                  targetStatusInfo.mode.toUpperCase() === "NOT WORKING") ? (
                   <p className="text-xs font-bold text-red-600">
                     {shouldShowStoppedSince
                       ? "Stopped since: "
@@ -843,7 +850,7 @@ export const VehicleOverviewCard = ({
                   <Elock data={vehicleData} />
                   <BreathAnalyzer data={vehicleData} />
                   <Padlock data={vehicleData} />
-                  <DTC data={vehicleData} /> 
+                  <DTC data={vehicleData} />
                   <Passenger data={vehicleData} />
                   <Fuel data={vehicleData} />
 
@@ -939,12 +946,12 @@ export const VehicleOverviewCard = ({
                   ) : null}
                 </div>
 
-                {vehicleData.gpsDtl.alertCount > 0 ? (
+                {/* {vehicleData.gpsDtl.alertCount > 0 ? (
                   <WarningOutlined
                     color=""
                     style={{ fontSize: "20px", color: "#FED400" }}
                   />
-                ) : null}
+                ) : null} */}
 
                 {isCheckInAccount(Number(auth.userId)) ? null : (
                   <div

@@ -183,7 +183,10 @@ export const View = () => {
       title: "AC Report",
       url: `https://gtrac.in/newtracking/reports/all_reports_of_vehicle.php?report=Journey&token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
     },
-    Number(userId) === 85380 || Number(userId) === 81023 || Number(userId) === 833624
+    [
+      85380, 81023, 833624, 3236, 4105, 57257, 60632, 60376, 3212, 56866, 4581,
+      53096, 85035, 833868, 833608, 3189, 834018,
+    ].includes(Number(userId))
       ? {
           title: "Consolidated AC Report",
           url: `https://gtrac.in/newtracking/reports/ac_cosolidatetravel.php?token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`,
@@ -242,8 +245,8 @@ export const View = () => {
       : null,
   ];
 
-  const allReports = rawReports.filter(
-    (report): report is ReportItem => Boolean(report),
+  const allReports = rawReports.filter((report): report is ReportItem =>
+    Boolean(report),
   );
 
   return (

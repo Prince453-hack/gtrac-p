@@ -7,7 +7,8 @@ export const getNormalOrControllerId = (
 ) => {
   if (Number(userId) === 83957) {
     const gpsVId =
-      Number((data?.GPSInfo as any)?.vehId || data?.GPSInfo?.vehId) || data?.vId;
+      Number((data?.GPSInfo as any)?.vehId || data?.GPSInfo?.vehId) ||
+      data?.vId;
     return gpsVId;
   }
 

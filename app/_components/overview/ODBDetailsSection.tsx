@@ -526,6 +526,7 @@ const ODBDetailsSection = ({
         case "door open in non-geofence":
         case "door open in non geofence":
         case "LOCK Unlocked":
+        case "elock tampered":
           categorized.eLockAlerts.push(alert);
           break;
         case "phone call":
@@ -594,10 +595,11 @@ const ODBDetailsSection = ({
         groupedAlerts.get(groupKey)!.push(alert);
       });
 
-      return Array.from(groupedAlerts.values()).flatMap((groupedVehicleAlerts) =>
-        groupedVehicleAlerts
-          .sort((a, b) => getAlertTimestamp(b) - getAlertTimestamp(a))
-          .slice(0, maxAlertsPerVehiclePerAlertType),
+      return Array.from(groupedAlerts.values()).flatMap(
+        (groupedVehicleAlerts) =>
+          groupedVehicleAlerts
+            .sort((a, b) => getAlertTimestamp(b) - getAlertTimestamp(a))
+            .slice(0, maxAlertsPerVehiclePerAlertType),
       );
     };
 

@@ -73,7 +73,7 @@ export const Markers = () => {
 			? `/assets/images/map/vehicles/checkin.png`
 			: Number(auth.userId) === 85182
 			? `/assets/images/map/vehicles/${vehicleVar}-black.png`
-			: marker.gpsDtl.notworkingHrs >= 24
+			: (marker.gpsDtl.mode === 'NOT WORKING' || marker.gpsDtl.notworkingHrs >= 24)
 			? `/assets/images/map/vehicles/${vehicleVar}-black.png`
 			: checkIfIgnitionOnOrOff({
 					ignitionState: marker.gpsDtl.ignState.toLowerCase() as 'off' | 'on',

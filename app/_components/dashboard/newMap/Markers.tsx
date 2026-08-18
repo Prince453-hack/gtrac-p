@@ -540,7 +540,7 @@ export const Markers = ({ openSetting, isSettingOpen }: MarkersProps) => {
         historyReplay.isHistoryReplayMode === false &&
         selectedVehicle.vId !== 0
       ) {
-        clusterer.clearMarkers();
+        clusterer?.clearMarkers();
         individualMarkers.forEach((marker) => marker.setMap(null));
         setIndividualMarkers([]);
       }

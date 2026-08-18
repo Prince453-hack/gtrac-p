@@ -1,59 +1,18 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
-import Chart from "chart.js/auto";
 import { VehicleData } from "@/app/_globalRedux/services/types/getListVehiclesmobTypes";
-import { computeMetrics, Point } from "./FuelAndAdblueTabs";
-import useWindowSize from "@/app/hooks/useWindowSize";
-import { useSelector } from "react-redux";
 import { RootState } from "@/app/_globalRedux/store";
+import useWindowSize from "@/app/hooks/useWindowSize";
+import Chart from "chart.js/auto";
 import moment from "moment";
-export const vehiclePairs: Record<string, string> = {
-  "12449386": "1201000730",
-  "12449853": "1235000315",
-  "12448978": "1235000290",
-  "12449127": "1235000295",
-  "12449128": "1235000296",
-  "12448979": "1201000728",
-  "12449665": "1235000308",
-  "12449666": "1235000309",
-  "12449834": "1235000314",
-  "12449216": "1201000729",
-  "12449832": "1204004523",
-  "12448916": "1235000289",
-  "12448801": "1204004389",
-  "12449315": "1235000300",
-  "12449353": "1235000305",
-  "12449314": "1235000299",
-  "12449733": "1235000312",
-  "12449731": "1235000310",
-  "12448973": "1201000727",
-  "12449852": "1201000732",
-  "12449059": "1235000291",
-  "12449389": "1201000731",
-  "12449214": "1235000297",
-  "12448981": "1201000724",
-  "12448977": "1201000725",
-  "12449318": "1235000304",
-  "12449132": "1235000301",
-  "12448975": "1201000726",
-  "12449215": "1235000298",
-  "12449854": "1235000316",
-  "12449833": "1235000313",
-  "12449060": "1235000292",
-  "12449316": "1235000302",
-  "12448802": "1235000281",
-  "12449467": "1235000306",
-  "12449317": "1235000303",
-  "12449126": "1235000294",
-  "12448917": "1204004467",
-  "12449732": "1235000311",
-  "12448974": "1201000723",
-  "12448795": "1201000717",
-};
+import { useEffect, useMemo } from "react";
+import { useSelector } from "react-redux";
+import { computeMetrics, Point } from "./FuelAndAdblueTabs";
+import { vehiclePairs } from "./vehiclePairs";
+export { vehiclePairs };
 
 const isSpecialUser = (userId: string | number) =>
-  [833193, 833916, 833863].includes(Number(userId));
+  [833193, 833916, 833863, 833818].includes(Number(userId));
 
 type PluginData = {
   event: string | null;
@@ -253,7 +212,9 @@ export const FuelChart = ({
   const { userId } = useSelector((state: RootState) => state.auth);
   const windowWidth = useWindowSize().width;
 
-  const isSpecialUser = [833193, 833916, 833863].includes(Number(userId));
+  const isSpecialUser =
+    [833193, 833916, 833863, 833818].includes(Number(userId)) ||
+    Boolean(vehiclePairs[String(data.vId)]);
 
   // Build chart data; the parent component maps fuelData correctly
   const chartData = useMemo(() => {
@@ -262,7 +223,7 @@ export const FuelChart = ({
 
   // For special users, keep existing logic (computeMetrics)
   const fuelEvents = useMemo(() => {
-    if ([833193, 833916, 833863].includes(Number(userId))) {
+    if (isSpecialUser) {
       return computeMetrics(chartData, "fuel", 50);
     }
 

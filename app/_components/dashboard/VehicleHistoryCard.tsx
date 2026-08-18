@@ -118,6 +118,22 @@ export const VehicleHistoryCard = ({
     dispatch(setHistoryReplayInterval(interval));
   };
 
+  const formattedDuration = useMemo(() => {
+    if (vehicleData.totalTimeInMIN && vehicleData.totalTimeInMIN > 0) {
+      const totalMinutes = vehicleData.totalTimeInMIN;
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = Math.round(totalMinutes % 60);
+      if (hours === 0) {
+        return `${minutes} Mins`;
+      }
+      const hourText = hours === 1 ? "1 Hour" : `${hours} Hours`;
+      const minuteText =
+        minutes === 0 ? "" : minutes === 1 ? "1 Min" : `${minutes} Mins`;
+      return minuteText ? `${hourText}, ${minuteText}` : hourText;
+    }
+    return vehicleData.totalTime;
+  }, [vehicleData.totalTimeInMIN, vehicleData.totalTime]);
+
   return (
     <>
       {date ? (
@@ -166,11 +182,11 @@ export const VehicleHistoryCard = ({
                   <span className="text-sm font-semibold">
                     {type === "Running" ? (
                       <p className="text-primary-green">
-                        Ran for {vehicleData.totalTime}
+                        Ran for {formattedDuration}
                       </p>
                     ) : type === "Idle" ? (
                       <p className="text-custom-pink">
-                        Stopped for {vehicleData.totalTime}
+                        Stopped for {formattedDuration}
                       </p>
                     ) : null}
                   </span>

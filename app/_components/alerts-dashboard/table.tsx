@@ -44,30 +44,30 @@ export default function TableN({
 								{type === 'active_code' ? (
 									<TableRow>
 										{row.SPN_Description ? (
-											<TableCell colSpan={tableHead.length} className='p-4'>
-												<div className='space-y-2 mt-1'>
-													<div className='pb-2'>
-														<strong>Description: </strong>
-														<p>{row.SPN_Description_Expansion || 'N/A'}</p>
-													</div>
-													<Table border={1} className='border border-neutral-300'>
-														<TableHeader className='border-b border-neutral-300'>
-															<TableRow className='bg-gray-100 border-b border-neutral-300'>
-																<TableHead className='text-nowrap border-r border-neutral-300'>Possible Causes</TableHead>
-																<TableHead className='text-nowrap border-r border-neutral-300'>Symptoms</TableHead>
-																<TableHead className='text-nowrap border-r border-neutral-300'>Recommended Actions</TableHead>
-															</TableRow>
-														</TableHeader>
-														<TableBody>
-															<TableRow>
-																<TableCell className='border-r  border-neutral-300'>{row.SPN_Possible_Causes || 'N/A'}</TableCell>
-																<TableCell className='border-r  border-neutral-300'>{row.SPN_Symptoms || 'N/A'}</TableCell>
-																<TableCell className='border-r border-neutral-300'>{row.SPN_Recommended_Actions || 'N/A'}</TableCell>
-															</TableRow>
-														</TableBody>
-													</Table>
+										<TableCell colSpan={tableHead.length} className='p-4'>
+											<div className='space-y-2 mt-1'>
+												<div className='pb-2'>
+													<strong>Description: </strong>
+													<p>{row.SPN_Description_Expansion || 'N/A'}</p>
 												</div>
-											</TableCell>
+												<Table border={1} className='border border-neutral-300'>
+													<TableHeader className='border-b border-neutral-300'>
+														<TableRow className='bg-gray-100 border-b border-neutral-300'>
+															<TableHead className='text-nowrap border-r border-neutral-300'>Possible Causes</TableHead>
+															<TableHead className='text-nowrap border-r border-neutral-300'>Symptoms</TableHead>
+															<TableHead className='text-nowrap border-r border-neutral-300'>Recommended Actions</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														<TableRow>
+															<TableCell className='border-r  border-neutral-300'>{row.SPN_Possible_Causes || 'N/A'}</TableCell>
+															<TableCell className='border-r  border-neutral-300'>{row.SPN_Symptoms || 'N/A'}</TableCell>
+															<TableCell className='border-r border-neutral-300'>{row.SPN_Recommended_Actions || 'N/A'}</TableCell>
+														</TableRow>
+													</TableBody>
+												</Table>
+											</div>
+										</TableCell>
 										) : (
 											<TableCell colSpan={tableHead.length} className='p-4'>
 												Code is not available at the moment. Our technical library is continuously being updated to include more SPN/FMI fault codes

@@ -1,17 +1,22 @@
 "use client";
 
+import { useLoginMutation } from "@/app/_globalRedux/services/fuelAuth";
+import { useLazyGetFuelLevelQuery } from "@/app/_globalRedux/services/fuelCentralData";
 import { useGetAllFuelDataGraphQuery } from "@/app/_globalRedux/services/fuelData";
-import { useGetpathwithDateDaignosticQuery } from "@/app/_globalRedux/services/trackingDashboard";
 import { useLazyGetRawFuelWithDateEcoQuery } from "@/app/_globalRedux/services/trackingDashboard";
 import { useLazyGetpathwithDateDaignosticOBDQuery } from "@/app/_globalRedux/services/trackingDashboardOBD";
-import { GetItnaryWithMapResponse } from "@/app/_globalRedux/services/types";
 import { RootState } from "@/app/_globalRedux/store";
-import { getAlphabetsFirstChr } from "@/app/helpers/stringManipulation";
 import { calculateFuelMetricsFor833916 } from "@/app/helpers/fuelMetrics833916";
+import {
+  calculateCentralFuelMetrics,
+  calculateMileageAndFuel,
+  calculateUser833193FuelMetrics,
+} from "@/app/helpers/fuelMetricsHelper";
+import { getAlphabetsFirstChr } from "@/app/helpers/stringManipulation";
 import { Skeleton } from "antd";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
-import { computeMetrics, Point } from "./fuelAdblue/FuelAndAdblueTabs";
+import { vehiclePairs } from "./fuelAdblue/vehiclePairs";
 
 export const VehicleDateOverview = ({
   travelTime,
@@ -40,10 +45,53 @@ export const VehicleDateOverview = ({
   const [obdData, setObdData] = useState<any>(null);
   const [isObdLoading, setIsObdLoading] = useState(false);
   const [getOBDData] = useLazyGetpathwithDateDaignosticOBDQuery();
-  const [getRawFuelData, { data: rawFuelData, isLoading: isRawFuelLoading }] =
+  const [getRawFuelData, { isLoading: isRawFuelLoading }] =
     useLazyGetRawFuelWithDateEcoQuery();
 
-  // Fuel tracking API call - only for user 833193
+  const isVehiclePair = Boolean(vehiclePairs[String(selectedVehicle.vId)]);
+
+  const [loginTrigger, { data: fuelAuthRes }] = useLoginMutation();
+  const [
+    getFuelLevel,
+    { data: centralFuelLevelData, isLoading: isCentralFuelLoading },
+  ] = useLazyGetFuelLevelQuery();
+
+  useEffect(() => {
+    if (isVehiclePair && selectedVehicle.vId !== 0) {
+      if (!fuelAuthRes?.jwt) {
+        loginTrigger();
+      } else {
+        const sD =
+          customRange.dateRangeForDataFetching.startDate ||
+          new Date().toISOString().split("T")[0] + " 00:00";
+        const eD =
+          customRange.dateRangeForDataFetching.endDate ||
+          new Date().toISOString().split("T")[0] + " 23:59";
+
+        const imei =
+          vehiclePairs[String(selectedVehicle.vId)] ||
+          String(selectedVehicle.vId);
+        const timeBegin = Math.floor(new Date(sD).getTime() / 1000);
+        const timeEnd = Math.floor(new Date(eD).getTime() / 1000);
+
+        getFuelLevel({
+          vehicleID: imei,
+          timeBegin,
+          timeEnd,
+          token: fuelAuthRes.jwt,
+        });
+      }
+    }
+  }, [
+    isVehiclePair,
+    selectedVehicle.vId,
+    customRange.dateRangeForDataFetching,
+    fuelAuthRes?.jwt,
+    loginTrigger,
+    getFuelLevel,
+  ]);
+
+  // Fuel tracking API call - only for user 833193, 833818, or vehicle pairs
   const { data: fuelData, isLoading: isFuelDataLoading } =
     useGetAllFuelDataGraphQuery(
       {
@@ -57,24 +105,10 @@ export const VehicleDateOverview = ({
         userid: userId,
       },
       {
-        skip: selectedVehicle.vId === 0 || !userId || Number(userId) !== 833193,
-      },
-    );
-
-  const { data: diagnosticData, isLoading: isDiagnosticLoading } =
-    useGetpathwithDateDaignosticQuery(
-      {
-        vId: selectedVehicle.vId,
-        startDate:
-          customRange.dateRangeForDataFetching.startDate ||
-          new Date().toISOString().split("T")[0] + " 00:00",
-        endDate:
-          customRange.dateRangeForDataFetching.endDate ||
-          new Date().toISOString().split("T")[0] + " 23:59",
-        userId: userId,
-      },
-      {
-        skip: true || selectedVehicle.vId === 0 || !userId,
+        skip:
+          selectedVehicle.vId === 0 ||
+          !userId ||
+          (!isVehiclePair && ![833193, 833818].includes(Number(userId))),
       },
     );
 
@@ -118,7 +152,8 @@ export const VehicleDateOverview = ({
       if (
         selectedVehicle.vId === 0 ||
         !userId ||
-        (Number(userId) !== 833916 &&
+        (!isVehiclePair &&
+          Number(userId) !== 833916 &&
           (!selectedVehicle.gpsDtl?.fuel ||
             selectedVehicle.gpsDtl.fuel > 100 ||
             selectedVehicle.gpsDtl.port === 31500))
@@ -155,67 +190,8 @@ export const VehicleDateOverview = ({
     selectedVehicle.gpsDtl?.fuel,
     customRange.dateRangeForDataFetching,
     userId,
+    isVehiclePair,
   ]);
-
-  function calculateMileageAndFuel(response: GetItnaryWithMapResponse): {
-    mileage: number;
-    fuelConsumed: number;
-  } {
-    const readings: Point[] = Array.isArray(response.fuelarray)
-      ? response.fuelarray
-          .filter(
-            (p) =>
-              p.tel_fuel !== 0 &&
-              p.speed >= 2 &&
-              p.speed <= 5 &&
-              p.tel_fuel !== undefined &&
-              p.tel_fuel !== null,
-          )
-          .map((p) => ({
-            odometer: p.tel_odometer ? p.tel_odometer.toString() : "0",
-            fuel: p.tel_fuel ? p.tel_fuel : 0,
-            adblue: 0,
-            time: p.datetime,
-            gps_latitude: p.lat,
-            gps_longitude: p.lng,
-            location: p.location,
-            event: null,
-            amountFilled: null,
-            amountStolen: null,
-            distanceSinceLastFill: null,
-          }))
-      : [];
-
-    if (readings.length < 2) {
-      return { mileage: 0, fuelConsumed: 0 };
-    }
-
-    const enriched = computeMetrics(
-      readings,
-      "fuel",
-      Number(userId) === 833193 ? 10 : 70,
-    );
-
-    const addedFuel = enriched.reduce(
-      (sum, pt) => sum + (pt.amountFilled ?? 0),
-      0,
-    );
-
-    let totalConsumed =
-      (readings[0].fuel ?? 0) - (readings[readings.length - 1].fuel ?? 0);
-    totalConsumed += addedFuel;
-
-    if (totalConsumed === 0) {
-      return { mileage: 0, fuelConsumed: 0 };
-    }
-
-    const mileage =
-      (isNaN(Number(response.totalRunningDistanceKM))
-        ? response.calculatedTotalDistance
-        : Number(response.totalRunningDistanceKM)) / totalConsumed;
-
-    return { mileage, fuelConsumed: totalConsumed };
-  }
 
   useEffect(() => {
     if (
@@ -223,54 +199,18 @@ export const VehicleDateOverview = ({
       isApmTotalKmLoading === false &&
       isGetPathWithDateDiagnosticLoading === false
     ) {
-      const tempMileageAndFuel = calculateMileageAndFuel(vehicleItnaryWithPath);
+      const tempMileageAndFuel = calculateMileageAndFuel({
+        response: vehicleItnaryWithPath,
+        userId,
+      });
       setMileageAndFuelConsumed(tempMileageAndFuel);
     }
-  }, [isApmTotalKmLoading, isGetPathWithDateDiagnosticLoading]);
-
-  const calculateUser833193FuelMetrics = () => {
-    if (!fuelData?.list || fuelData.list.length === 0) {
-      return { fuelConsumed: null, mileage: null };
-    }
-    const sortedData = [...fuelData.list].sort(
-      (a: any, b: any) => b.timeinepoc - a.timeinepoc,
-    );
-
-    const firstRv = sortedData[0]?.rv; // First date (newest)
-    const lastRv = sortedData[sortedData.length - 1]?.rv; // Last date (oldest)
-
-    if (
-      firstRv === undefined ||
-      lastRv === undefined ||
-      firstRv === null ||
-      lastRv === null
-    ) {
-      return { fuelConsumed: null, mileage: null };
-    }
-
-    const totalFuelFilling = fuelData.list
-      .filter(
-        (entry: any) => entry.fueltype === "Fuel Filling" && entry.filling > 0,
-      )
-      .reduce((sum: number, entry: any) => sum + entry.filling, 0);
-
-    let fuelConsumed = Math.abs(lastRv + totalFuelFilling - firstRv);
-
-    // Calculate total distance
-    const totalDistValue =
-      Number(extra) === 0 || isNaN(Number(extra))
-        ? Number(distance.split(" ")[0])
-        : Number(distance.split(" ")[0]) +
-          (Number(distance.split(" ")[0]) * Number(extra)) / 100;
-
-    if (fuelConsumed <= 0 || totalDistValue <= 0) {
-      return { fuelConsumed, mileage: 0 };
-    }
-
-    const mileage = totalDistValue / fuelConsumed;
-
-    return { fuelConsumed, mileage };
-  };
+  }, [
+    isApmTotalKmLoading,
+    isGetPathWithDateDiagnosticLoading,
+    vehicleItnaryWithPath,
+    userId,
+  ]);
 
   const calculateUser833916FuelMetrics = () =>
     calculateFuelMetricsFor833916({
@@ -325,16 +265,18 @@ export const VehicleDateOverview = ({
           )}
         </div>
 
-        {(Number(userId) === 833916 ||
-          (selectedVehicle.gpsDtl.fuel &&
-            selectedVehicle.gpsDtl.fuel <= 100 &&
-            selectedVehicle.gpsDtl.port !== 31500)) ? (
+        {Number(userId) === 833916 ||
+        isVehiclePair ||
+        (selectedVehicle.gpsDtl.fuel &&
+          selectedVehicle.gpsDtl.fuel <= 100 &&
+          selectedVehicle.gpsDtl.port !== 31500) ? (
           <div className="flex items-center justify-center flex-col border w-full h-24">
             <h3 className=" relative bottom-1">Mileage</h3>
             {isGetPathWithDateDiagnosticLoading ||
             isApmTotalKmLoading ||
             isFuelDataLoading ||
             isObdLoading ||
+            isCentralFuelLoading ||
             isRawFuelLoading ? (
               <Skeleton.Button
                 active={true}
@@ -344,25 +286,62 @@ export const VehicleDateOverview = ({
             ) : (
               <p className="font-semibold mt-0.5">
                 {(() => {
-                  if (Number(userId) === 833193) {
-                    const { mileage } = calculateUser833193FuelMetrics();
-                    return mileage !== null && mileage !== 0
-                      ? mileage.toFixed(2)
-                      : "-";
+                  if (isVehiclePair) {
+                    const { mileage } = calculateCentralFuelMetrics({
+                      centralFuelLevelData,
+                      distance,
+                      extra,
+                    });
+                    if (
+                      mileage !== null &&
+                      mileage !== 0 &&
+                      isFinite(mileage)
+                    ) {
+                      return mileage.toFixed(2);
+                    }
+                  }
+
+                  if (Number(userId) === 833193 || Number(userId) === 833818) {
+                    const { mileage } = calculateUser833193FuelMetrics({
+                      fuelData,
+                      distance,
+                      extra,
+                    });
+                    if (
+                      mileage !== null &&
+                      mileage !== 0 &&
+                      isFinite(mileage)
+                    ) {
+                      return mileage.toFixed(2);
+                    }
                   }
 
                   if (Number(userId) === 833916) {
                     const { mileage } = calculateUser833916FuelMetrics();
-                    return mileage !== null && mileage !== 0
-                      ? mileage.toFixed(2)
-                      : "-";
+                    if (
+                      mileage !== null &&
+                      mileage !== 0 &&
+                      isFinite(mileage)
+                    ) {
+                      return mileage.toFixed(2);
+                    }
                   }
 
                   const mileageValue = obdData?.totalmileage;
-                  if (mileageValue === undefined || mileageValue === null)
-                    return "-";
-                  if (!isFinite(mileageValue) || mileageValue > 7) return "-";
-                  return mileageValue;
+                  if (
+                    mileageValue !== undefined &&
+                    mileageValue !== null &&
+                    isFinite(mileageValue) &&
+                    mileageValue <= 7 &&
+                    mileageValue > 0
+                  ) {
+                    return mileageValue;
+                  }
+
+                  return mileageAndFuelConsumed.mileage !== 0 &&
+                    isFinite(mileageAndFuelConsumed.mileage)
+                    ? mileageAndFuelConsumed.mileage.toFixed(2)
+                    : "-";
                 })()}
               </p>
             )}
@@ -387,17 +366,18 @@ export const VehicleDateOverview = ({
           </div>
         )}
 
-        {(Number(userId) === 833916 ||
-          (selectedVehicle.gpsDtl.fuel &&
-            selectedVehicle.gpsDtl.fuel <= 100 &&
-            selectedVehicle.gpsDtl.port !== 31500)) ? (
+        {Number(userId) === 833916 ||
+        isVehiclePair ||
+        (selectedVehicle.gpsDtl.fuel &&
+          selectedVehicle.gpsDtl.fuel <= 100 &&
+          selectedVehicle.gpsDtl.port !== 31500) ? (
           <div className="flex items-center justify-center flex-col border w-full h-24 border-x-0">
             <h3 className=" relative bottom-1">Fuel Consumed</h3>
             {isGetPathWithDateDiagnosticLoading ||
             isApmTotalKmLoading ||
             isFuelDataLoading ||
-            isDiagnosticLoading ||
             isObdLoading ||
+            isCentralFuelLoading ||
             isRawFuelLoading ? (
               <Skeleton.Button
                 active={true}
@@ -407,57 +387,67 @@ export const VehicleDateOverview = ({
             ) : (
               <p className="font-semibold mt-0.5">
                 {(() => {
-                  if (Number(userId) === 833193) {
-                    const { fuelConsumed } = calculateUser833193FuelMetrics();
-                    return fuelConsumed !== null
-                      ? `${fuelConsumed.toFixed(2)} L`
-                      : "-";
+                  if (isVehiclePair) {
+                    const { fuelConsumed } = calculateCentralFuelMetrics({
+                      centralFuelLevelData,
+                      distance,
+                      extra,
+                    });
+                    if (
+                      fuelConsumed !== null &&
+                      fuelConsumed !== 0 &&
+                      isFinite(fuelConsumed)
+                    ) {
+                      return `${fuelConsumed.toFixed(2)} L`;
+                    }
+                  }
+
+                  if (Number(userId) === 833193 || Number(userId) === 833818) {
+                    const { fuelConsumed } = calculateUser833193FuelMetrics({
+                      fuelData,
+                      distance,
+                      extra,
+                    });
+                    if (
+                      fuelConsumed !== null &&
+                      fuelConsumed !== 0 &&
+                      isFinite(fuelConsumed)
+                    ) {
+                      return `${fuelConsumed.toFixed(2)} L`;
+                    }
                   }
 
                   if (Number(userId) === 833916) {
                     const { fuelConsumed } = calculateUser833916FuelMetrics();
-                    return fuelConsumed !== null
-                      ? `${fuelConsumed.toFixed(2)} L`
-                      : "-";
+                    if (
+                      fuelConsumed !== null &&
+                      fuelConsumed !== 0 &&
+                      isFinite(fuelConsumed)
+                    ) {
+                      return `${fuelConsumed.toFixed(2)} L`;
+                    }
                   }
 
                   if (obdData?.totalFuelConsumedT !== undefined) {
                     const fuelValue = obdData.totalFuelConsumedT;
                     const mileageValue = obdData?.totalmileage;
 
-                    // Check if mileage is invalid first
                     if (
-                      mileageValue === undefined ||
-                      mileageValue === null ||
-                      !isFinite(mileageValue) ||
-                      mileageValue > 7
+                      mileageValue !== undefined &&
+                      mileageValue !== null &&
+                      isFinite(mileageValue) &&
+                      mileageValue <= 7 &&
+                      fuelValue >= 0 &&
+                      fuelValue <= 10000
                     ) {
-                      return "-";
+                      return `${fuelValue?.toFixed(2)} L`;
                     }
-
-                    // Handle negative values (might be cumulative ECU values)
-                    if (fuelValue < 0) {
-                      console.warn(
-                        "Negative fuel value detected, might be cumulative ECU data:",
-                        fuelValue,
-                      );
-                      return "- L (Invalid data)";
-                    }
-
-                    // Handle very large values (might be cumulative ECU values)
-                    if (fuelValue > 10000) {
-                      console.warn(
-                        "Very large fuel value detected, might be cumulative ECU data:",
-                        fuelValue,
-                      );
-                      return "- L (Invalid data)";
-                    }
-
-                    // Display reasonable fuel consumption values
-                    return `${fuelValue?.toFixed(2)} L`;
                   }
 
-                  return "-";
+                  return mileageAndFuelConsumed.fuelConsumed !== 0 &&
+                    isFinite(mileageAndFuelConsumed.fuelConsumed)
+                    ? `${mileageAndFuelConsumed.fuelConsumed.toFixed(2)} L`
+                    : "-";
                 })()}
               </p>
             )}

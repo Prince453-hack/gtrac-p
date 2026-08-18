@@ -229,13 +229,7 @@ const getColorFromStatusForAlerts = (status: string) => {
       </Tag>
     );
   } else {
-    return (
-      <Tag color="yellow-inverse" title="Minor">
-        <div className="flex gap-1 items-center px-1 py-0.5 font-semibold">
-          Minor
-        </div>
-      </Tag>
-    );
+    return "";
   }
 };
 
@@ -244,7 +238,7 @@ const renderAlertStatus = (
   category: string,
   activeAlerts: any[],
   getColorFromStatus: (status: string) => JSX.Element,
-  getColorFromStatusForAlerts: (status: string) => JSX.Element,
+  getColorFromStatusForAlerts: (status: string) => JSX.Element | string,
   defaultStatus: string,
 ) => {
   const activeFault = activeAlerts.find((alert) => {
@@ -283,29 +277,69 @@ function aggregateSPNData(
   if (!data) return aggregatedData;
 
   for (let i = 1; i <= maxCodes; i++) {
-    const spnCode = data[`SPN${i}_Code`];
+    const spnCode =
+      data[`SPN${i}_Code`] ??
+      data[`spn${i}_code`] ??
+      data[`spn${i}Code`] ??
+      data[`SPN${i}Code`];
 
     if (spnCode === null || spnCode === undefined) continue; // skip missing
 
-    const spnDescription = data[`SPN${i}_Description`];
-    const spnDescriptionExpansion = data[`SPN${i}_DetailedExplanation`];
-    const spnPossibleCauses = data[`SPN${i}_Causes`];
-    const spnRecommendedActions = data[`SPN${i}_RecommendedAction`];
-    const spnSymptoms = data[`SPN${i}_Symptoms`];
-    const spnCategory = data[`SPN${i}_Category`];
-    const fmiCategory = data[`FMI${i}_Category`];
+    const spnDescription =
+      data[`SPN${i}_Description`] ??
+      data[`spn${i}_description`] ??
+      data[`spn${i}Description`];
+
+    const spnDescriptionExpansion =
+      data[`SPN${i}_DetailedExplanation`] ??
+      data[`spn${i}_detailedexplanation`] ??
+      data[`spn${i}_description_expansion`];
+
+    const spnPossibleCauses =
+      data[`SPN${i}_Causes`] ??
+      data[`spn${i}_causes`];
+
+    const spnRecommendedActions =
+      data[`SPN${i}_RecommendedAction`] ??
+      data[`spn${i}_recommendedaction`];
+
+    const spnSymptoms =
+      data[`SPN${i}_Symptoms`] ?? data[`spn${i}_symptoms`];
+
+    const spnCategory =
+      data[`SPN${i}_Category`] ??
+      data[`spn${i}_category`] ??
+      data[`spn${i}Category`] ??
+      "";
+
+    const fmiCategory =
+      data[`FMI${i}_Category`] ??
+      data[`fmi${i}_category`] ??
+      data[`FMI${i}Category`] ??
+      "";
+
+    const displayDescription =
+      spnDescription && String(spnDescription).trim() !== ""
+        ? spnDescription
+        : "No Description available";
+
+    const fmiDescription =
+      data[`fmi${i}_description`] ??
+      data[`FMI${i}_Description`] ??
+      "";
 
     aggregatedData.push({
       SPN_Code: <p className="text-blue-500 font-bold text-sm">#{spnCode}</p>,
-      SPN_Description: spnDescription,
+      SPN_Description: displayDescription,
       SPN_Category: spnCategory,
-      FMI_Category: getColorFromStatusForAlerts(fmiCategory),
-      Set_At: `${data.odometer} Km`,
-      category: (fmiCategory as AlertServerity) ?? ("GREEN" as AlertServerity),
-      SPN_Possible_Causes: spnPossibleCauses,
-      SPN_Recommended_Actions: spnRecommendedActions,
-      SPN_Symptoms: spnSymptoms,
-      SPN_Description_Expansion: spnDescriptionExpansion,
+      FMI_Category: fmiCategory ? getColorFromStatusForAlerts(fmiCategory) : "",
+      Set_At: data.odometer ? `${data.odometer} Km` : "-",
+      category: fmiCategory as AlertServerity,
+      SPN_Possible_Causes: spnPossibleCauses || fmiDescription || "-",
+      SPN_Recommended_Actions: spnRecommendedActions || "-",
+      SPN_Symptoms: spnSymptoms || "-",
+      SPN_Description_Expansion:
+        spnDescriptionExpansion || displayDescription,
     });
   }
 
@@ -316,12 +350,21 @@ export const DTC = ({ data }: { data: VehicleData }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isShared, setIsShared] = useState(false);
+  const [hasAttemptedVehicleFetch, setHasAttemptedVehicleFetch] =
+    useState(false);
   const { userId, groupId } = useSelector((state: RootState) => state.auth);
   const { data: vehicleParamsData } = useSelector(
     (state: RootState) => state.minMaxAlertsParameter,
   );
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
+
+  // Reset vehicle-specific fetch tracker when modal opens or vehicle changes
+  useEffect(() => {
+    if (isModalOpen) {
+      setHasAttemptedVehicleFetch(false);
+    }
+  }, [isModalOpen, data.vId]);
 
   const isDTCDataFresh = (): boolean => {
     try {
@@ -653,38 +696,47 @@ export const DTC = ({ data }: { data: VehicleData }) => {
       Array.isArray(dtcResultData.list) &&
       dtcResultData.list.length > 0
     ) {
+      const targetVId = data.vId;
+      const targetSysServiceId = data.vehicleTrip?.sys_service_id;
+
+      // Filter for rows belonging to this vehicle, or use full list if returned from vehicle-specific query
       const vehicleSpecificData = (
         dtcResultData.list as Array<Record<string, any>>
-      ).filter(
-        (row) => row.sys_service_id === data.vehicleTrip?.sys_service_id,
-      );
-
-      if (vehicleSpecificData.length === 0) {
-        // Try filtering by vId as alternative identifier
-        const fallbackData = (
-          dtcResultData.list as Array<Record<string, any>>
-        ).filter((row) => row.sys_service_id === data.vId);
-
-        if (fallbackData.length === 0) {
-          // No vehicle-specific data found, don't show any data
-          setActiveAlerts([]);
-          return;
+      ).filter((row) => {
+        if (
+          !row.sys_service_id &&
+          !row.vehicleId &&
+          !row.vehicle_id &&
+          (row.spn1_code !== undefined || row.SPN1_Code !== undefined)
+        ) {
+          return true;
         }
+        return (
+          row.sys_service_id === targetSysServiceId ||
+          row.sys_service_id === targetVId ||
+          row.vehicleId === targetVId ||
+          row.vehicle_id === targetVId ||
+          Number(row.sys_service_id) === Number(targetVId) ||
+          Number(row.sys_service_id) === Number(targetSysServiceId)
+        );
+      });
 
-        // Use vId-matched data
-        const candidate = fallbackData.find((row) => {
-          for (let i = 1; i <= 10; i++) {
-            const code = row[`SPN${i}_Code`];
-            if (code !== null && code !== undefined) return true;
-          }
-          return false;
-        });
-
-        if (!candidate) {
-          setActiveAlerts([]);
-          return;
+      // Find first candidate row with at least 1 valid SPN code
+      const candidate = (
+        vehicleSpecificData.length > 0 ? vehicleSpecificData : dtcResultData.list
+      ).find((row: Record<string, any>) => {
+        for (let i = 1; i <= 10; i++) {
+          const code =
+            row[`SPN${i}_Code`] ??
+            row[`spn${i}_code`] ??
+            row[`spn${i}Code`] ??
+            row[`SPN${i}Code`];
+          if (code !== null && code !== undefined) return true;
         }
+        return false;
+      });
 
+      if (candidate) {
         const agregatedData = aggregateSPNData(
           {
             ...candidate,
@@ -693,39 +745,42 @@ export const DTC = ({ data }: { data: VehicleData }) => {
           10,
         );
 
-        setActiveAlerts(agregatedData);
-        return;
-      }
-
-      // Pick first row that contains at least one valid SPN*_Code
-      const candidate = vehicleSpecificData.find((row) => {
-        for (let i = 1; i <= 10; i++) {
-          const code = row[`SPN${i}_Code`];
-          if (code !== null && code !== undefined) return true;
+        if (agregatedData.length > 0) {
+          setActiveAlerts(agregatedData);
+          return;
         }
-        return false;
-      });
+      }
 
-      if (!candidate) {
-        setActiveAlerts([]);
+      // If no candidate DTC code was found and we haven't attempted vehicle-specific fetch yet:
+      if (!hasAttemptedVehicleFetch && data.vId) {
+        setHasAttemptedVehicleFetch(true);
+        getDTCquery({
+          vehicleId: data.vId,
+          token: groupId,
+        });
         return;
       }
 
-      const agregatedData = aggregateSPNData(
-        {
-          ...candidate,
-          odometer: data.gpsDtl.tel_odometer,
-        },
-        10,
-      );
-
-      // aggregated active alerts prepared
-      setActiveAlerts(agregatedData);
+      setActiveAlerts([]);
+    } else {
+      if (dtcResultData && !hasAttemptedVehicleFetch && data.vId) {
+        setHasAttemptedVehicleFetch(true);
+        getDTCquery({
+          vehicleId: data.vId,
+          token: groupId,
+        });
+      } else {
+        setActiveAlerts([]);
+      }
     }
   }, [
     dtcResultData,
     data.gpsDtl.tel_odometer,
     data.vehicleTrip?.sys_service_id,
+    data.vId,
+    groupId,
+    hasAttemptedVehicleFetch,
+    getDTCquery,
   ]);
 
   const processRawDataForScatterChart = (

@@ -1,5 +1,8 @@
 "use client";
 
+import { useLoginMutation } from "@/app/_globalRedux/services/fuelAuth";
+import { useLazyGetFuelLevelQuery } from "@/app/_globalRedux/services/fuelCentralData";
+import { useLazyGetSearchVhlDataQuery } from "@/app/_globalRedux/services/getSearchData/index";
 import {
   useLazyConvertLatLngToAddressQuery,
   useLazyGetKuberFuelFillingAndTheftQuery,
@@ -17,29 +20,25 @@ import {
   Tabs,
   TabsProps,
   Tooltip,
-  Image,
 } from "antd";
 import { ColumnsType } from "antd/es/table";
-import { useSelector } from "react-redux";
-
-// Local type interface for raw data
-interface GetRawDataWithoutLocationApiResponse {
-  rawdata: any[];
-}
+import "leaflet/dist/leaflet.css";
 import moment from "moment";
-import React, { useEffect, useState, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { useLoginMutation } from "@/app/_globalRedux/services/fuelAuth";
-import { useLazyGetFuelLevelQuery } from "@/app/_globalRedux/services/fuelCentralData";
-import { useLazyGetSearchVhlDataQuery } from "@/app/_globalRedux/services/getSearchData/index";
-import { vehiclePairs } from "./FuelAndAdBlueChart";
-import { FuelChart, AdblueChart } from "./FuelAndAdBlueChart";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
+import { AdblueChart, FuelChart } from "./FuelAndAdBlueChart";
 import {
   AdblueAndFuelTable,
   AdblueAndFuelTableKuber,
   NewFuelTrackingTable,
 } from "./FuelAndAdBlueTable";
-import "leaflet/dist/leaflet.css";
+import { vehiclePairs } from "./vehiclePairs";
+
+// Local type interface for raw data
+interface GetRawDataWithoutLocationApiResponse {
+  rawdata: any[];
+}
 
 // Custom marker icon using divIcon (more reliable)
 let CustomMarkerIcon: any;
@@ -118,6 +117,8 @@ export type FillTheftLogPoint = {
   fillingTime: string;
   event_address: string;
 };
+
+const SPECIAL_USER_IDS = [833193, 833818];
 
 export function computeMetrics(
   data: Point[],
@@ -266,7 +267,9 @@ export const FuelAdblueTabs = ({
   const [getFuelFilledTheftKuberTrigger] =
     useLazyGetKuberFuelFillingAndTheftQuery();
 
-  const isSpecialUser = Number(userId) === 833193 || Number(userId) === 833913;
+  const isSpecialUser =
+    SPECIAL_USER_IDS.includes(Number(userId)) ||
+    Boolean(vehiclePairs[String(data?.vId)]);
 
   const [loginTrigger, { data: loginRes, isLoading: isAuthLoading }] =
     useLoginMutation();
@@ -283,11 +286,7 @@ export const FuelAdblueTabs = ({
     useLazyGetSearchVhlDataQuery();
 
   useEffect(() => {
-    if (
-      (Number(userId) === 833916 || Number(userId) === 833193) &&
-      groupId &&
-      data?.vId
-    ) {
+    if ((Number(userId) === 833916 || isSpecialUser) && groupId && data?.vId) {
       getSearchVhlData({
         token: String(groupId),
         vehreg: String(data.vId),
@@ -313,7 +312,7 @@ export const FuelAdblueTabs = ({
   }, [isSpecialUser, loginTrigger]);
 
   useEffect(() => {
-    if (isSpecialUser && loginRes?.jwt && fetchTrigger > 0) {
+    if (isSpecialUser && loginRes?.jwt) {
       const { startDate: sD, endDate: eD } = datesRef.current;
       const imei = vehiclePairs[String(data.vId)] || String(data.vId);
       const timeBegin = Math.floor(new Date(sD).getTime() / 1000);
@@ -378,7 +377,7 @@ export const FuelAdblueTabs = ({
     filteredFillingEvents: FillTheftLogPoint[];
     filteredTheftEvents: FillTheftLogPoint[];
   } => {
-    if (Number(userId) !== 833193 && Number(userId) !== 833913) {
+    if (!isSpecialUser) {
       return {
         filteredFillingEvents: fillingEvents,
         filteredTheftEvents: theftEvents,
@@ -536,9 +535,6 @@ export const FuelAdblueTabs = ({
   const fuelCapacity = data.vehicleFuelCapacity ?? 0;
 
   const getLastFuelFromData = () => {
-    const isSpecialUser =
-      Number(userId) === 833193 || Number(userId) === 833913;
-
     if (fuelTrackingData?.list && isSpecialUser) {
       const fuelLevelEntries = fuelTrackingData.list
         .filter(
@@ -592,10 +588,9 @@ export const FuelAdblueTabs = ({
 
   const adblueFilledPercentage = data.gpsDtl.adblue ?? 0;
   const adblueCapacity = data.vehicleAdblueCapacity ?? 0;
-  const actualadblue =
-    Number(userId) == 833193 || Number(userId) == 833913
-      ? adblueCapacity
-      : adblueCapacity * (adblueFilledPercentage / 100);
+  const actualadblue = isSpecialUser
+    ? adblueCapacity
+    : adblueCapacity * (adblueFilledPercentage / 100);
 
   const checkIfFuelOrAblueFilledOrStolen = ({
     points,
@@ -628,8 +623,8 @@ export const FuelAdblueTabs = ({
     const filterByTime = (points: Point[]) => {
       const filtered: Point[] = [];
 
-      // For userId 833193, use simpler time-based filtering without event detection
-      if (Number(userId) === 833193 || Number(userId) === 833913) {
+      // For special users, use simpler time-based filtering without event detection
+      if (isSpecialUser) {
         points.forEach((pt) => {
           if (filtered.length === 0) {
             filtered.push(pt);
@@ -810,7 +805,7 @@ export const FuelAdblueTabs = ({
 
   // Apply deduplication to Kuber fuel events
   useEffect(() => {
-    if (Number(userId) === 833193 || Number(userId) === 833913) {
+    if (isSpecialUser) {
       const { filteredFillingEvents, filteredTheftEvents } =
         deduplicateFuelEvents(fuelFillingEvents, fuelTheftEvents);
       setFuelFillingEvents(filteredFillingEvents);
@@ -820,10 +815,7 @@ export const FuelAdblueTabs = ({
 
   // Process new fuel tracking data
   useEffect(() => {
-    if (
-      fuelTrackingData?.list &&
-      (Number(userId) === 833193 || Number(userId) === 833913)
-    ) {
+    if (fuelTrackingData?.list && isSpecialUser) {
       // Process fuel filling events (only "Fuel Filling" entries)
       const fillingEvents = fuelTrackingData.list
         .filter((item: any) => item.fueltype === "Fuel Filling")
@@ -883,7 +875,7 @@ export const FuelAdblueTabs = ({
     type: "fuel" | "adblue";
     event: "filled" | "theft";
   }): ColumnsType<any> => {
-    const isSpecial = Number(userId) === 833193 || Number(userId) === 833913;
+    const isSpecial = isSpecialUser;
     const baseColumns: any[] = [
       {
         title: "Time",
@@ -1018,7 +1010,7 @@ export const FuelAdblueTabs = ({
       dataIndex: "fillingTime",
       render: (val: string) => moment(val).format("DD MMM, YYYY HH:mm"),
     },
-    ...(Number(userId) !== 833193 && Number(userId) !== 833913
+    ...(!isSpecialUser
       ? [
           {
             title: "Location",
@@ -1059,7 +1051,7 @@ export const FuelAdblueTabs = ({
       dataIndex: "odometer",
       render: (val: number) => val || "–",
     },
-    ...(Number(userId) !== 833193 && Number(userId) !== 833913
+    ...(!isSpecialUser
       ? [
           {
             title: "Location",
@@ -1332,7 +1324,7 @@ export const FuelAdblueTabs = ({
           renderTabContent("fuel", fuelEvents)
         ),
     },
-    ...(Number(userId) === 833193 || Number(userId) === 833913
+    ...(isSpecialUser
       ? []
       : [
           {

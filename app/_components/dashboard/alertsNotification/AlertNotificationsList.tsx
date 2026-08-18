@@ -1,26 +1,26 @@
 "use client";
 
-import { ConfigProvider, Drawer, Skeleton, Tooltip, Spin, Input } from "antd";
+import { useGetAllVehiclesQuery } from "@/app/_globalRedux/services/trackingDashboard";
+import { GetAlertsPopupsResponse } from "@/app/_globalRedux/services/types/alerts";
+import { VideoAlarmsRecord } from "@/app/_globalRedux/services/types/post/getVideoAlerts";
+import { useDeleteAllAlertNotificationsMutation } from "@/app/_globalRedux/services/yatayaat";
+import { RootState } from "@/app/_globalRedux/store";
+import {
+  ExportOutlined,
+  LoadingOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+import { ConfigProvider, Drawer, Input, Skeleton, Spin, Tooltip } from "antd";
 import { createStyles, useTheme } from "antd-style";
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import type {
   DrawerClassNames,
   DrawerStyles,
 } from "antd/es/drawer/DrawerPanel";
-import { AlertNotificationCard } from "./AlertNotificationCard";
-import { GetAlertsPopupsResponse } from "@/app/_globalRedux/services/types/alerts";
-import {
-  ExportOutlined,
-  ReloadOutlined,
-  LoadingOutlined,
-  SearchOutlined,
-} from "@ant-design/icons";
-import { useDeleteAllAlertNotificationsMutation } from "@/app/_globalRedux/services/yatayaat";
-import { useSelector } from "react-redux";
-import { RootState } from "@/app/_globalRedux/store";
-import React from "react";
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import { VideoAlarmsRecord } from "@/app/_globalRedux/services/types/post/getVideoAlerts";
+import { useSelector } from "react-redux";
+import { AlertNotificationCard } from "./AlertNotificationCard";
 import { VideoNotificationCard } from "./VideoNotificationCard";
 
 const useStyle = createStyles(({ token }) => ({
@@ -65,47 +65,87 @@ export const AlertNotificationsList = ({
   const { groupId, accessLabel, userId } = useSelector(
     (state: RootState) => state.auth,
   );
+  const isUser6461 = Number(userId) === 6461;
+
+  const { data: allVehiclesData } = useGetAllVehiclesQuery(
+    { token: "6364" },
+    { skip: !isUser6461 },
+  );
+
   const [deleteAlerts] = useDeleteAllAlertNotificationsMutation();
 
   const [visibleAlerts, setVisibleAlerts] = useState(20);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const allowedVehicleSet = useMemo(() => {
+    if (!isUser6461 || !allVehiclesData?.list) return new Set<string>();
+    const set = new Set<string>();
+    allVehiclesData.list.forEach((v: any) => {
+      if (v.veh_reg)
+        set.add(v.veh_reg.replace(/[^a-zA-Z0-9]/g, "").toLowerCase());
+      if (v.id != null) set.add(String(v.id));
+    });
+    return set;
+  }, [isUser6461, allVehiclesData]);
+
   const getFilteredAlerts = () => {
+    const currentData = isUser6461
+      ? {
+          ...data,
+          normalAlerts: data.normalAlerts.filter((alert: any) => {
+            if (alert.alert_type?.toLowerCase().includes("idle")) {
+              const reg = alert.vehicleno
+                ? alert.vehicleno.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
+                : "";
+              const id =
+                alert.sys_service_id != null
+                  ? String(alert.sys_service_id)
+                  : "";
+              return (
+                (reg && allowedVehicleSet.has(reg)) ||
+                (id && allowedVehicleSet.has(id))
+              );
+            }
+            return true;
+          }),
+        }
+      : data;
+
     if (!searchTerm.trim()) {
-      return data;
+      return currentData;
     }
 
     const search = searchTerm.toLowerCase();
     return {
-      videoAlerts: data.videoAlerts.filter(
+      videoAlerts: currentData.videoAlerts.filter(
         (alert: any) =>
           alert.type?.toLowerCase().includes(search) ||
           alert.msg?.toLowerCase().includes(search) ||
           alert.description?.toLowerCase().includes(search),
       ),
-      panicAlerts: data.panicAlerts.filter(
+      panicAlerts: currentData.panicAlerts.filter(
         (alert: any) =>
           alert.msg?.toLowerCase().includes(search) ||
           alert.idle_vehicle?.toLowerCase().includes(search),
       ),
-      elockAlerts: data.elockAlerts.filter(
+      elockAlerts: currentData.elockAlerts.filter(
         (alert: any) =>
           alert.title?.toLowerCase().includes(search) ||
           alert.description?.toLowerCase().includes(search) ||
           alert.vehicle_no?.toLowerCase().includes(search),
       ),
-      temperatureAlerts: data.temperatureAlerts.filter(
+      temperatureAlerts: currentData.temperatureAlerts.filter(
         (alert: any) =>
           alert.msg?.toLowerCase().includes(search) ||
           alert.idle_vehicle?.toLowerCase().includes(search),
       ),
-      fuelAlerts: data.fuelAlerts.filter(
+      fuelAlerts: currentData.fuelAlerts.filter(
         (alert: any) =>
           alert.msg?.toLowerCase().includes(search) ||
           alert.idle_vehicle?.toLowerCase().includes(search),
       ),
-      normalAlerts: data.normalAlerts.filter(
+      normalAlerts: currentData.normalAlerts.filter(
         (alert: any) =>
           alert.alert_type?.toLowerCase().includes(search) ||
           alert.vehicleno?.toLowerCase().includes(search) ||
@@ -120,30 +160,7 @@ export const AlertNotificationsList = ({
   const groupGeofenceAlerts = (
     alerts: GetAlertsPopupsResponse[],
   ): GetAlertsPopupsResponse[] => {
-    const geofenceAlerts = alerts.filter(
-      (alert) =>
-        alert.alert_type?.toLowerCase().includes("geofence") ||
-        alert.alert_type?.toLowerCase().includes("geofence alert"),
-    );
-    const otherAlerts = alerts.filter(
-      (alert) =>
-        !alert.alert_type?.toLowerCase().includes("geofence") &&
-        !alert.alert_type?.toLowerCase().includes("geofence alert"),
-    );
-
-    const groupedGeofence = geofenceAlerts.reduce(
-      (acc: Record<string, GetAlertsPopupsResponse>, alert) => {
-        const groupKey = `${alert.vehicleno}-${alert.alert_type}-${alert.msg}`;
-
-        if (!acc[groupKey]) {
-          acc[groupKey] = { ...alert };
-        }
-        return acc;
-      },
-      {},
-    );
-
-    return [...Object.values(groupedGeofence), ...otherAlerts];
+    return alerts;
   };
 
   const groupedNormalAlerts = groupGeofenceAlerts(filteredData.normalAlerts);
@@ -453,27 +470,24 @@ export const AlertNotificationsList = ({
               ""
             )}
             {groupedNormalAlerts.length
-              ? getVisibleData(groupedNormalAlerts).map(
-                  (alert, index) => (
-                    <div
-                      key={alert.alert_id + index}
-                      className={`py-3 px-6  ${
-                        index !== groupedNormalAlerts.length - 1 &&
-                        "border-b"
-                      }`}
-                    >
-                      <AlertNotificationCard
-                        description={alert.msg}
-                        alertId={alert.alert_id}
-                        type={"Normal"}
-                        vehicleNumber={alert.vehicleno}
-                        vehicleId={alert.sys_service_id}
-                        alertType={alert.alert_type}
-                        dateTime={alert.datetime}
-                      />
-                    </div>
-                  ),
-                )
+              ? getVisibleData(groupedNormalAlerts).map((alert, index) => (
+                  <div
+                    key={alert.alert_id + index}
+                    className={`py-3 px-6  ${
+                      index !== groupedNormalAlerts.length - 1 && "border-b"
+                    }`}
+                  >
+                    <AlertNotificationCard
+                      description={alert.msg}
+                      alertId={alert.alert_id}
+                      type={"Normal"}
+                      vehicleNumber={alert.vehicleno}
+                      vehicleId={alert.sys_service_id}
+                      alertType={alert.alert_type}
+                      dateTime={alert.datetime}
+                    />
+                  </div>
+                ))
               : ""}
           </div>
 
