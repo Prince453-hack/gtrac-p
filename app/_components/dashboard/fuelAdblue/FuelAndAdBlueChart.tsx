@@ -221,51 +221,10 @@ export const FuelChart = ({
     return rawData || [];
   }, [rawData]);
 
-  // For special users, keep existing logic (computeMetrics)
   const fuelEvents = useMemo(() => {
-    if (isSpecialUser) {
-      return computeMetrics(chartData, "fuel", 50);
-    }
-
     if (chartData.length === 0) return [];
-    const threshold = 50;
-    const twelveHoursInMs = 12 * 60 * 60 * 1000;
-    const result: any[] = [];
-    let baseline = Number(chartData[0]?.fuel ?? 0);
-    let lastFillTime: Date | null = null;
-
-    for (let i = 0; i < chartData.length; i++) {
-      const curr = chartData[i];
-      const currFuel = Number(curr.fuel ?? 0);
-      const currTime = new Date(curr.time);
-
-      if (currFuel < baseline) {
-        baseline = currFuel;
-      }
-
-      const cumulativeRise = currFuel - baseline;
-
-      const meetsThreshold = cumulativeRise >= threshold;
-      const twelveHoursPassed =
-        !lastFillTime ||
-        currTime.getTime() - lastFillTime.getTime() >= twelveHoursInMs;
-      const isFilled = meetsThreshold && twelveHoursPassed;
-
-      result.push({
-        ...curr,
-        event: isFilled ? "filled" : null,
-        amountFilled: isFilled ? cumulativeRise : null,
-        amountStolen: null,
-        distanceSinceLastFill: null,
-      });
-
-      if (isFilled) {
-        baseline = currFuel;
-        lastFillTime = currTime;
-      }
-    }
-    return result;
-  }, [chartData, userId]);
+    return computeMetrics(chartData, "fuel", 50);
+  }, [chartData]);
 
   useEffect(() => {
     const canvasId = `fuelChart${data.vehReg}`;

@@ -136,15 +136,52 @@ export function computeMetrics(
   }[] = [];
   let lastFillOdometer = data[0]?.odometer ?? "0";
 
-  for (let i = 1; i < data.length; i++) {
-    const prev = data[i - 1];
-    const curr = data[i];
-    const diff = curr[key] - prev[key];
-    if (diff > threshold) {
-      const distanceSinceLastFill =
-        Number(curr.odometer) - Number(lastFillOdometer);
-      fillEvents.push({ index: i, amountFilled: diff, distanceSinceLastFill });
-      lastFillOdometer = curr.odometer;
+  if (key === "fuel") {
+    const twelveHoursInMs = 12 * 60 * 60 * 1000;
+    let baseline = Number(data[0]?.fuel ?? 0);
+    let lastFillTime: Date | null = null;
+
+    for (let i = 0; i < data.length; i++) {
+      const curr = data[i];
+      const currFuel = Number(curr.fuel ?? 0);
+      const currTime = new Date(curr.time);
+
+      if (currFuel < baseline) {
+        baseline = currFuel;
+      }
+
+      const cumulativeRise = currFuel - baseline;
+      const meetsThreshold = cumulativeRise >= threshold;
+      const twelveHoursPassed =
+        !lastFillTime ||
+        currTime.getTime() - lastFillTime.getTime() >= twelveHoursInMs;
+
+      if (meetsThreshold && twelveHoursPassed) {
+        const distanceSinceLastFill =
+          Number(curr.odometer) - Number(lastFillOdometer);
+        fillEvents.push({
+          index: i,
+          amountFilled: cumulativeRise,
+          distanceSinceLastFill: isNaN(distanceSinceLastFill)
+            ? 0
+            : distanceSinceLastFill,
+        });
+        baseline = currFuel;
+        lastFillTime = currTime;
+        lastFillOdometer = curr.odometer;
+      }
+    }
+  } else {
+    for (let i = 1; i < data.length; i++) {
+      const prev = data[i - 1];
+      const curr = data[i];
+      const diff = curr[key] - prev[key];
+      if (diff > threshold) {
+        const distanceSinceLastFill =
+          Number(curr.odometer) - Number(lastFillOdometer);
+        fillEvents.push({ index: i, amountFilled: diff, distanceSinceLastFill });
+        lastFillOdometer = curr.odometer;
+      }
     }
   }
 

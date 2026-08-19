@@ -5,6 +5,7 @@ import {
   useLazyGetDTCResultQuery,
   useLazyGetRawFuelWithDateQuery,
 } from "@/app/_globalRedux/services/trackingDashboard";
+import { useLookupDtcMutation } from "@/app/_globalRedux/services/dtcCode";
 import { VehicleData } from "@/app/_globalRedux/services/types/getListVehiclesmobTypes";
 import { RootState } from "@/app/_globalRedux/store";
 import exportDtcPdf from "@/app/helpers/exportDtcPdf";
@@ -283,7 +284,14 @@ function aggregateSPNData(
       data[`spn${i}Code`] ??
       data[`SPN${i}Code`];
 
-    if (spnCode === null || spnCode === undefined) continue; // skip missing
+    if (spnCode === null || spnCode === undefined || spnCode === "") continue; // skip missing
+
+    const fmiCode =
+      data[`FMI${i}_Code`] ??
+      data[`fmi${i}_code`] ??
+      data[`fmi${i}Code`] ??
+      data[`FMI${i}Code`] ??
+      0;
 
     const spnDescription =
       data[`SPN${i}_Description`] ??
@@ -328,10 +336,10 @@ function aggregateSPNData(
       data[`FMI${i}_Description`] ??
       "";
 
-    aggregatedData.push({
+    const item: any = {
       SPN_Code: <p className="text-blue-500 font-bold text-sm">#{spnCode}</p>,
-      SPN_Description: displayDescription,
-      SPN_Category: spnCategory,
+      SPN_Description: displayDescription, // Issue
+      SPN_Category: spnCategory || "General", // Alert (where it is coming from)
       FMI_Category: fmiCategory ? getColorFromStatusForAlerts(fmiCategory) : "",
       Set_At: data.odometer ? `${data.odometer} Km` : "-",
       category: fmiCategory as AlertServerity,
@@ -339,8 +347,22 @@ function aggregateSPNData(
       SPN_Recommended_Actions: spnRecommendedActions || "-",
       SPN_Symptoms: spnSymptoms || "-",
       SPN_Description_Expansion:
-        spnDescriptionExpansion || displayDescription,
+        fmiDescription || spnDescriptionExpansion || displayDescription,
+    };
+
+    Object.defineProperty(item, "rawSpnCode", {
+      value: spnCode,
+      enumerable: false,
+      writable: true,
     });
+
+    Object.defineProperty(item, "rawFmiCode", {
+      value: fmiCode,
+      enumerable: false,
+      writable: true,
+    });
+
+    aggregatedData.push(item);
   }
 
   return aggregatedData;
@@ -358,11 +380,18 @@ export const DTC = ({ data }: { data: VehicleData }) => {
   );
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
+  const [lookupDtc] = useLookupDtcMutation();
+  const [isDtcLookupLoading, setIsDtcLookupLoading] = useState(false);
 
   // Reset vehicle-specific fetch tracker when modal opens or vehicle changes
   useEffect(() => {
     if (isModalOpen) {
       setHasAttemptedVehicleFetch(false);
+      setActiveAlerts([]);
+      setIsDtcLookupLoading(true);
+    } else {
+      setActiveAlerts([]);
+      setIsDtcLookupLoading(false);
     }
   }, [isModalOpen, data.vId]);
 
@@ -396,16 +425,18 @@ export const DTC = ({ data }: { data: VehicleData }) => {
 
   const [activeAlerts, setActiveAlerts] = useState<
     {
-      FMI_Category: string;
-      FMI_Code: number;
-      FMI_Description: string;
-      SPN_Category: string;
-      SPN_Code: number;
-      SPN_Description: string;
-      SPN_Possible_Causes: string;
-      SPN_Recommended_Actions: string;
-      SPN_Symptoms: string;
-      SPN_Description_Expansion: string;
+      FMI_Category: any;
+      FMI_Code?: number;
+      FMI_Description?: string;
+      SPN_Category: any;
+      SPN_Code: any;
+      SPN_Description: any;
+      SPN_Possible_Causes: any;
+      SPN_Recommended_Actions: any;
+      SPN_Symptoms: any;
+      SPN_Description_Expansion: any;
+      category?: AlertServerity;
+      Set_At?: string;
     }[]
   >([]);
 
@@ -737,7 +768,9 @@ export const DTC = ({ data }: { data: VehicleData }) => {
       });
 
       if (candidate) {
-        const agregatedData = aggregateSPNData(
+        const vehicleMake = data?.veh_status ? data.veh_status.trim() : "";
+
+        const rawAggregated = aggregateSPNData(
           {
             ...candidate,
             odometer: data.gpsDtl.tel_odometer,
@@ -745,8 +778,95 @@ export const DTC = ({ data }: { data: VehicleData }) => {
           10,
         );
 
-        if (agregatedData.length > 0) {
-          setActiveAlerts(agregatedData);
+        if (rawAggregated.length > 0) {
+          setIsDtcLookupLoading(true);
+
+          // Perform DTC lookup for each code to enrich details from DTC API
+          (async () => {
+            try {
+              const enriched = await Promise.all(
+                rawAggregated.map(async (alertItem) => {
+                  const spnNum = Number(alertItem.rawSpnCode);
+                  const fmiNum = Number(alertItem.rawFmiCode) || 0;
+                  if (!spnNum) return alertItem;
+
+                  try {
+                    const lookupRes = await lookupDtc({
+                      spn: spnNum,
+                      fmi: fmiNum,
+                      make: vehicleMake,
+                    }).unwrap();
+
+                    if (lookupRes) {
+                      const possibleCausesStr = Array.isArray(
+                        lookupRes.possible_causes,
+                      )
+                        ? lookupRes.possible_causes
+                            .filter(Boolean)
+                            .map((c: string) => `• ${c}`)
+                            .join("\n")
+                        : (lookupRes.possible_causes as any) ||
+                          alertItem.SPN_Possible_Causes;
+
+                      const symptomsStr = Array.isArray(lookupRes.symptoms)
+                        ? lookupRes.symptoms
+                            .filter(Boolean)
+                            .map((s: string) => `• ${s}`)
+                            .join("\n")
+                        : (lookupRes.symptoms as any) ||
+                          alertItem.SPN_Symptoms;
+
+                      const updatedItem: any = {
+                        SPN_Code: alertItem.SPN_Code,
+                        SPN_Description:
+                          lookupRes.category || alertItem.SPN_Description, // Issue as category
+                        SPN_Category: alertItem.SPN_Category, // Alert (where it is coming from only)
+                        FMI_Category: alertItem.FMI_Category,
+                        Set_At: alertItem.Set_At,
+                        category: alertItem.category,
+                        SPN_Possible_Causes: possibleCausesStr || "-",
+                        SPN_Recommended_Actions:
+                          alertItem.SPN_Recommended_Actions,
+                        SPN_Symptoms: symptomsStr || "-",
+                        SPN_Description_Expansion:
+                          lookupRes.fault_description ||
+                          alertItem.SPN_Description_Expansion, // Description as FMI description
+                      };
+
+                      Object.defineProperty(updatedItem, "rawSpnCode", {
+                        value: alertItem.rawSpnCode,
+                        enumerable: false,
+                        writable: true,
+                      });
+
+                      Object.defineProperty(updatedItem, "rawFmiCode", {
+                        value: alertItem.rawFmiCode,
+                        enumerable: false,
+                        writable: true,
+                      });
+
+                      return updatedItem;
+                    }
+                  } catch (lookupErr) {
+                    console.error(
+                      "DTC Lookup failed for SPN:",
+                      spnNum,
+                      lookupErr,
+                    );
+                  }
+                  return alertItem;
+                }),
+              );
+
+              setActiveAlerts(enriched);
+            } catch (err) {
+              console.error("Error enriching DTC data:", err);
+              setActiveAlerts(rawAggregated);
+            } finally {
+              setIsDtcLookupLoading(false);
+            }
+          })();
+
           return;
         }
       }
@@ -754,6 +874,7 @@ export const DTC = ({ data }: { data: VehicleData }) => {
       // If no candidate DTC code was found and we haven't attempted vehicle-specific fetch yet:
       if (!hasAttemptedVehicleFetch && data.vId) {
         setHasAttemptedVehicleFetch(true);
+        setIsDtcLookupLoading(true);
         getDTCquery({
           vehicleId: data.vId,
           token: groupId,
@@ -762,15 +883,18 @@ export const DTC = ({ data }: { data: VehicleData }) => {
       }
 
       setActiveAlerts([]);
+      setIsDtcLookupLoading(false);
     } else {
       if (dtcResultData && !hasAttemptedVehicleFetch && data.vId) {
         setHasAttemptedVehicleFetch(true);
+        setIsDtcLookupLoading(true);
         getDTCquery({
           vehicleId: data.vId,
           token: groupId,
         });
       } else {
         setActiveAlerts([]);
+        setIsDtcLookupLoading(false);
       }
     }
   }, [
@@ -781,6 +905,8 @@ export const DTC = ({ data }: { data: VehicleData }) => {
     groupId,
     hasAttemptedVehicleFetch,
     getDTCquery,
+    lookupDtc,
+    data,
   ]);
 
   const processRawDataForScatterChart = (
@@ -1180,6 +1306,8 @@ export const DTC = ({ data }: { data: VehicleData }) => {
             className="w-[20px] cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
+              setActiveAlerts([]);
+              setIsDtcLookupLoading(true);
               setIsModalOpen(true);
 
               const vehicleId = data.vId;
@@ -1296,15 +1424,19 @@ export const DTC = ({ data }: { data: VehicleData }) => {
                     </div>
                     <div className="text-center">{alert.category}</div>
                     <div className="text-center">
-                      {isDTCDataFresh()
-                        ? getColorFromStatus("Good")
-                        : renderAlertStatus(
-                            alert.category,
-                            activeAlerts,
-                            getColorFromStatus,
-                            getColorFromStatusForAlerts,
-                            "Good",
-                          )}
+                      {isDtcLoading || isDtcLookupLoading ? (
+                        <Spin size="small" />
+                      ) : isDTCDataFresh() ? (
+                        getColorFromStatus("Good")
+                      ) : (
+                        renderAlertStatus(
+                          alert.category,
+                          activeAlerts,
+                          getColorFromStatus,
+                          getColorFromStatusForAlerts,
+                          "Good",
+                        )
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1326,15 +1458,19 @@ export const DTC = ({ data }: { data: VehicleData }) => {
                     </div>
                     <div className="text-center">{alert.category}</div>
                     <div className="text-center">
-                      {isDTCDataFresh()
-                        ? getColorFromStatus("Good")
-                        : renderAlertStatus(
-                            alert.category,
-                            activeAlerts,
-                            getColorFromStatus,
-                            getColorFromStatusForAlerts,
-                            "Good",
-                          )}
+                      {isDtcLoading || isDtcLookupLoading ? (
+                        <Spin size="small" />
+                      ) : isDTCDataFresh() ? (
+                        getColorFromStatus("Good")
+                      ) : (
+                        renderAlertStatus(
+                          alert.category,
+                          activeAlerts,
+                          getColorFromStatus,
+                          getColorFromStatusForAlerts,
+                          "Good",
+                        )
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1375,7 +1511,7 @@ export const DTC = ({ data }: { data: VehicleData }) => {
                     Active Code
                   </p>
                 </div>
-                {isDtcLoading ? (
+                {isDtcLoading || isDtcLookupLoading ? (
                   <div className="max-h-[200px] min-h-[200px] flex justify-center items-center">
                     <Spin spinning size="large" />
                   </div>

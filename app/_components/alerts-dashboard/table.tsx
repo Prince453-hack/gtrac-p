@@ -48,7 +48,7 @@ export default function TableN({
 											<div className='space-y-2 mt-1'>
 												<div className='pb-2'>
 													<strong>Description: </strong>
-													<p>{row.SPN_Description_Expansion || 'N/A'}</p>
+													<p className='whitespace-pre-line'>{row.SPN_Description_Expansion || 'N/A'}</p>
 												</div>
 												<Table border={1} className='border border-neutral-300'>
 													<TableHeader className='border-b border-neutral-300'>
@@ -60,9 +60,9 @@ export default function TableN({
 													</TableHeader>
 													<TableBody>
 														<TableRow>
-															<TableCell className='border-r  border-neutral-300'>{row.SPN_Possible_Causes || 'N/A'}</TableCell>
-															<TableCell className='border-r  border-neutral-300'>{row.SPN_Symptoms || 'N/A'}</TableCell>
-															<TableCell className='border-r border-neutral-300'>{row.SPN_Recommended_Actions || 'N/A'}</TableCell>
+															<TableCell className='border-r border-neutral-300 whitespace-pre-line'>{row.SPN_Possible_Causes || 'N/A'}</TableCell>
+															<TableCell className='border-r border-neutral-300 whitespace-pre-line'>{row.SPN_Symptoms || 'N/A'}</TableCell>
+															<TableCell className='border-r border-neutral-300 whitespace-pre-line'>{row.SPN_Recommended_Actions || 'N/A'}</TableCell>
 														</TableRow>
 													</TableBody>
 												</Table>

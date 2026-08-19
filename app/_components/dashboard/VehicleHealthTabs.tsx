@@ -224,45 +224,13 @@ function VehicleHealthTabs() {
   const [isAdblueProcessing, setIsAdblueProcessing] = useState(false);
   const [rawFuelData, setRawFuelData] = useState<any>(null);
 
-  const fuelThreshold = Number(userId) === 833193 ? 10 : 50;
   const adblueThrreshold = 5;
 
   // Use the same logic as the chart for fuel events
   const chartFuelEvents = useMemo(() => {
-    if (Number(userId) === 833193) {
-      return fuelData.length > 0 ? computeMetrics(fuelData, "fuel", 50) : [];
-    }
-    // For other users: same logic as chart
     if (fuelData.length === 0) return [];
-    const threshold = 50;
-    const result: any[] = [];
-    let baseline = Number(fuelData[0]?.fuel ?? 0);
-
-    for (let i = 0; i < fuelData.length; i++) {
-      const curr = fuelData[i];
-      const currFuel = Number(curr.fuel ?? 0);
-
-      if (currFuel < baseline) {
-        baseline = currFuel;
-      }
-
-      const cumulativeRise = currFuel - baseline;
-      const isFilled = cumulativeRise >= threshold;
-
-      result.push({
-        ...curr,
-        event: isFilled ? "filled" : null,
-        amountFilled: isFilled ? cumulativeRise : null,
-        amountStolen: null,
-        distanceSinceLastFill: null,
-      });
-
-      if (isFilled) {
-        baseline = currFuel;
-      }
-    }
-    return result;
-  }, [fuelData, userId]);
+    return computeMetrics(fuelData, "fuel", 50);
+  }, [fuelData]);
 
   useEffect(() => {
     setFuelEvents([]);
