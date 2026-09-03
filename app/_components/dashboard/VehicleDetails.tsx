@@ -244,7 +244,10 @@ export const getStartEndDate = (
   }
 };
 
-const isOBDVehicle = (selectedVehicle: any) => {
+const isOBDVehicle = (selectedVehicle: any, userId?: any) => {
+  if (Number(userId) === 833193) {
+    return false;
+  }
   return (
     selectedVehicle.gpsDtl?.fuel &&
     selectedVehicle.gpsDtl.fuel <= 100 &&
@@ -557,7 +560,7 @@ export const VehicleDetails = () => {
           });
 
           // Check if this is an OBD vehicle and call the appropriate API
-          if (isOBDVehicle(selectedVehicle)) {
+          if (isOBDVehicle(selectedVehicle, userId)) {
             setIsObdLoading(true);
             getPathWithDateDaignosticOBD({
               vId:

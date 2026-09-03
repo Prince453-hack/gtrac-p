@@ -105,6 +105,8 @@ export type Point = {
   amountFilled: number | null;
   amountStolen: number | null;
   distanceSinceLastFill: number | null;
+  fuelConsumed?: number | null;
+  mileage?: number | null;
 };
 
 export type FillTheftLogPoint = {
@@ -120,12 +122,45 @@ export type FillTheftLogPoint = {
 
 const SPECIAL_USER_IDS = [833193, 833818];
 
+function getHaversineDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+const parseNumericDist = (val: any): number => {
+  if (typeof val === "number") return val;
+  if (!val) return 0;
+  const match = String(val).match(/[\d.]+/);
+  return match ? parseFloat(match[0]) : 0;
+};
+
 export function computeMetrics(
   data: Point[],
   key: "fuel" | "adblue",
   threshold: number,
   distanceWindow: number = 10,
   timeWindow: number = 10 * 60 * 1000,
+  pathData?: {
+    diagnosticData?: any[];
+    patharry?: any[];
+    totalDistance?: string | number;
+    disInKM?: number | string;
+    extra?: string | number;
+  },
 ) {
   if (data.length === 0) return [];
 
@@ -133,6 +168,8 @@ export function computeMetrics(
     index: number;
     amountFilled: number;
     distanceSinceLastFill: number;
+    fuelConsumed: number | null;
+    mileage: number | null;
   }[] = [];
   let lastFillOdometer = data[0]?.odometer ?? "0";
 
@@ -140,6 +177,8 @@ export function computeMetrics(
     const twelveHoursInMs = 12 * 60 * 60 * 1000;
     let baseline = Number(data[0]?.fuel ?? 0);
     let lastFillTime: Date | null = null;
+    let lastFillFuel = Number(data[0]?.fuel ?? 0);
+    let lastFillIndex = 0;
 
     for (let i = 0; i < data.length; i++) {
       const curr = data[i];
@@ -157,18 +196,125 @@ export function computeMetrics(
         currTime.getTime() - lastFillTime.getTime() >= twelveHoursInMs;
 
       if (meetsThreshold && twelveHoursPassed) {
-        const distanceSinceLastFill =
-          Number(curr.odometer) - Number(lastFillOdometer);
+        const odoDiff = Number(curr.odometer) - Number(lastFillOdometer);
+        let distanceSinceLastFill =
+          !isNaN(odoDiff) && odoDiff > 0 ? odoDiff : 0;
+
+        const extraMultiplier =
+          pathData?.extra &&
+          !isNaN(Number(pathData.extra)) &&
+          Number(pathData.extra) > 0
+            ? 1 + Number(pathData.extra) / 100
+            : 1;
+
+        if (distanceSinceLastFill <= 0) {
+          const startMs = lastFillTime
+            ? lastFillTime.getTime()
+            : new Date(data[0].time).getTime();
+          const endMs = currTime.getTime();
+
+          // Try diagnosticData
+          if (pathData?.diagnosticData && pathData.diagnosticData.length > 0) {
+            let diagDist = 0;
+            pathData.diagnosticData.forEach((diag: any) => {
+              const diagStart = new Date(
+                diag.fromTime || diag.toTime,
+              ).getTime();
+              const diagEnd = new Date(diag.toTime || diag.fromTime).getTime();
+              if (diagEnd >= startMs && diagStart <= endMs) {
+                diagDist += parseNumericDist(diag.totalDistance);
+              }
+            });
+            if (diagDist > 0) {
+              distanceSinceLastFill = diagDist;
+            }
+          }
+
+          // Try patharry
+          if (
+            distanceSinceLastFill <= 0 &&
+            pathData?.patharry &&
+            pathData.patharry.length > 1
+          ) {
+            let pathDist = 0;
+            for (let p = 1; p < pathData.patharry.length; p++) {
+              const pPrev = pathData.patharry[p - 1];
+              const pCurr = pathData.patharry[p];
+              const t = new Date(pCurr.datetime).getTime();
+              if (t >= startMs && t <= endMs) {
+                if (pPrev.lat && pPrev.lng && pCurr.lat && pCurr.lng) {
+                  pathDist += getHaversineDistanceKm(
+                    pPrev.lat,
+                    pPrev.lng,
+                    pCurr.lat,
+                    pCurr.lng,
+                  );
+                }
+              }
+            }
+            if (pathDist > 0) {
+              distanceSinceLastFill = pathDist;
+            }
+          }
+
+          // Try totalDistance or disInKM
+          if (distanceSinceLastFill <= 0) {
+            const totalDist =
+              parseNumericDist(pathData?.totalDistance) ||
+              parseNumericDist(pathData?.disInKM);
+            if (totalDist > 0) {
+              const rangeStartMs = new Date(data[0].time).getTime();
+              const rangeEndMs = new Date(data[data.length - 1].time).getTime();
+              const totalDuration = rangeEndMs - rangeStartMs;
+              const fillDuration = endMs - startMs;
+              if (
+                totalDuration > 0 &&
+                fillDuration > 0 &&
+                fillEvents.length > 0
+              ) {
+                distanceSinceLastFill =
+                  (fillDuration / totalDuration) * totalDist;
+              } else {
+                distanceSinceLastFill = totalDist;
+              }
+            }
+          }
+        }
+
+        distanceSinceLastFill = distanceSinceLastFill * extraMultiplier;
+
+        // Calculate fuel consumed up to this fill
+        let fuelConsumed = 0;
+        for (let k = lastFillIndex + 1; k <= i; k++) {
+          const prevF = Number(data[k - 1].fuel);
+          const currF = Number(data[k].fuel);
+          if (!isNaN(prevF) && !isNaN(currF) && prevF > currF) {
+            fuelConsumed += prevF - currF;
+          }
+        }
+        if (fuelConsumed <= 0 && lastFillFuel > baseline) {
+          fuelConsumed = lastFillFuel - baseline;
+        }
+
+        const mileage =
+          fuelConsumed > 0 && distanceSinceLastFill > 0
+            ? distanceSinceLastFill / fuelConsumed
+            : null;
+
         fillEvents.push({
           index: i,
           amountFilled: cumulativeRise,
           distanceSinceLastFill: isNaN(distanceSinceLastFill)
             ? 0
             : distanceSinceLastFill,
+          fuelConsumed,
+          mileage,
         });
         baseline = currFuel;
         lastFillTime = currTime;
         lastFillOdometer = curr.odometer;
+        lastFillFuel = currFuel;
+        lastFillIndex = i;
       }
     }
   } else {
@@ -179,7 +325,13 @@ export function computeMetrics(
       if (diff > threshold) {
         const distanceSinceLastFill =
           Number(curr.odometer) - Number(lastFillOdometer);
-        fillEvents.push({ index: i, amountFilled: diff, distanceSinceLastFill });
+        fillEvents.push({
+          index: i,
+          amountFilled: diff,
+          distanceSinceLastFill,
+          fuelConsumed: null,
+          mileage: null,
+        });
         lastFillOdometer = curr.odometer;
       }
     }
@@ -242,6 +394,8 @@ export function computeMetrics(
         event: "filled",
         amountFilled: fillEvent.amountFilled,
         distanceSinceLastFill: fillEvent.distanceSinceLastFill,
+        fuelConsumed: fillEvent.fuelConsumed,
+        mileage: fillEvent.mileage,
         amountStolen: null,
       };
     } else if (theftEvent && !hasNearbyFill(index)) {
@@ -251,6 +405,8 @@ export function computeMetrics(
         amountStolen: theftEvent.amountStolen,
         amountFilled: null,
         distanceSinceLastFill: null,
+        fuelConsumed: null,
+        mileage: null,
       };
     } else {
       return {
@@ -259,6 +415,8 @@ export function computeMetrics(
         amountFilled: null,
         amountStolen: null,
         distanceSinceLastFill: null,
+        fuelConsumed: null,
+        mileage: null,
       };
     }
   });
@@ -299,7 +457,12 @@ export const FuelAdblueTabs = ({
   endDate: Date;
   fetchTrigger?: number;
 }) => {
-  const { userId, groupId } = useSelector((state: RootState) => state.auth);
+  const { userId, groupId, extra } = useSelector(
+    (state: RootState) => state.auth,
+  );
+  const vehicleItnaryWithPath = useSelector(
+    (state: RootState) => state.vehicleItnaryWithPath,
+  );
   const [convertToLocation] = useLazyConvertLatLngToAddressQuery();
   const [getFuelFilledTheftKuberTrigger] =
     useLazyGetKuberFuelFillingAndTheftQuery();
@@ -713,16 +876,16 @@ export const FuelAdblueTabs = ({
         const mapped: Point[] = fuelLevelData.tankData[0].data
           .map((item: any) => ({
             odometer: "",
-            fuel: item.aV,
-            adblue: 0,
+              fuel: item.aV,
+              adblue: 0,
             time: new Date(item.eD * 1000).toISOString(),
-            gps_latitude: null,
-            gps_longitude: null,
-            location: "Unknown Location",
-            event: null,
-            amountFilled: null,
-            amountStolen: null,
-            distanceSinceLastFill: null,
+              gps_latitude: null,
+              gps_longitude: null,
+              location: "Unknown Location",
+              event: null,
+              amountFilled: null,
+              amountStolen: null,
+              distanceSinceLastFill: null,
           }))
           .sort(
             (a: any, b: any) =>
@@ -803,6 +966,18 @@ export const FuelAdblueTabs = ({
         points,
         key,
         key === "adblue" ? adblueThrreshold : fuelThreshold,
+        10,
+        10 * 60 * 1000,
+        {
+          diagnosticData: vehicleItnaryWithPath?.diagnosticData,
+          patharry: vehicleItnaryWithPath?.patharry,
+          totalDistance:
+            vehicleItnaryWithPath?.totalDistance ||
+            vehicleItnaryWithPath?.totalRunningDistanceKM ||
+            vehicleItnaryWithPath?.calculatedTotalDistance,
+          disInKM: data?.disInKM || data?.gpsDtl?.Yesterday_KM,
+          extra: extra,
+        },
       ).filter((pt) => pt.event !== null);
 
       const resolved = await Promise.all(
@@ -834,7 +1009,16 @@ export const FuelAdblueTabs = ({
 
     if (fuelData.length > 0) process(fuelData, "fuel", setFuelEvents);
     if (adblueData.length > 0) process(adblueData, "adblue", setAdblueEvents);
-  }, [fuelData, adblueData, convertToLocation, userId, fuelThreshold]);
+  }, [
+    fuelData,
+    adblueData,
+    convertToLocation,
+    userId,
+    fuelThreshold,
+    vehicleItnaryWithPath,
+    data,
+    extra,
+  ]);
 
   useEffect(() => {
     // Disable AllFillTheftLog trigger for user 833193
@@ -955,14 +1139,37 @@ export const FuelAdblueTabs = ({
             title: opts.type === "fuel" ? "Fuel Filled" : "AdBlue Filled",
             dataIndex: "amountFilled",
             render: (val: number | null) =>
-              val != null ? val.toFixed(2) : "–",
+              val != null ? `${val.toFixed(2)} L` : "–",
           }
         : {
             title: opts.type === "fuel" ? "Fuel Stolen" : "AdBlue Stolen",
             dataIndex: "amountStolen",
             render: (val: number | null) =>
-              val != null ? val.toFixed(2) : "–",
+              val != null ? `${val.toFixed(2)} L` : "–",
           },
+      ...(opts.type === "fuel" && opts.event === "filled"
+        ? [
+            {
+              title: "Mileage",
+              dataIndex: "mileage",
+              render: (val: number | null, record: Point) => {
+                if (val != null && val > 0 && isFinite(val)) {
+                  return `${val.toFixed(2)} km/L`;
+                }
+                if (
+                  record.fuelConsumed &&
+                  record.fuelConsumed > 0 &&
+                  record.distanceSinceLastFill &&
+                  record.distanceSinceLastFill > 0
+                ) {
+                  const m = record.distanceSinceLastFill / record.fuelConsumed;
+                  return isFinite(m) && m > 0 ? `${m.toFixed(2)} km/L` : "–";
+                }
+                return "–";
+              },
+            },
+          ]
+        : []),
     ];
 
     if (opts.type === "fuel" && opts.event === "filled") {

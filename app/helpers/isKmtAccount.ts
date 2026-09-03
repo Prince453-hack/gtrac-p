@@ -6,6 +6,9 @@ export const isKmtAccount = (userId: number, parentUser: number) => {
     parentUser === 82815 ||
     userId === 87470 ||
     parentUser === 87470 ||
-    userId === 833105
+    userId === 833105 ||
+    parentUser === 833105 ||
+    userId === 86693 ||
+    parentUser === 86693
   );
 };

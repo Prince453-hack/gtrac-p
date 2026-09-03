@@ -40,7 +40,10 @@ import { isCheckInAccount } from "@/app/helpers/isCheckInAccount";
 import { apmTotalKm } from "@/app/helpers/apmTotalKm";
 import { getNormalOrControllerId } from "./utils/getNormalOrControllerId";
 
-const isOBDVehicle = (selectedVehicle: any) => {
+const isOBDVehicle = (selectedVehicle: any, userId?: any) => {
+  if (Number(userId) === 833193) {
+    return false;
+  }
   return (
     selectedVehicle.gpsDtl?.fuel &&
     selectedVehicle.gpsDtl.fuel <= 100 &&
@@ -257,7 +260,7 @@ export const CustomRangePicker = () => {
     let pathwithDateData = null;
     let pathwithDateLoading = false;
 
-    if (isOBDVehicle(selectedVehicle)) {
+    if (isOBDVehicle(selectedVehicle, userId)) {
       // For OBD vehicles, call ONLY the OBD API
       try {
         const obdResult = await getPathWithDateDaignosticOBD({

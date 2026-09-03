@@ -110,9 +110,10 @@ const Sidebar = ({ children }: { children: ReactNode }) => {
   const dispatch = useDispatch();
   const selectedKeys = [pathname];
   const hideSidebarIcons = [
-    833879, 833925, 833923, 833924, 833926, 83437,
+    833879, 833925, 833923, 833924, 833926, 83437, 834042,
   ].includes(Number(userId));
   const showSomeReport = Number(userId) === 833815;
+  const showDiagnosticReport = Number(userId) === 834042;
   const [isTripOnwardOutward, setIsTripOnwardOutward] =
     useState<boolean>(false);
   const [isVehicleImmobilize, setIsVehicleImmobilize] =
@@ -198,6 +199,57 @@ const Sidebar = ({ children }: { children: ReactNode }) => {
                       referrerPolicy="no-referrer"
                     >
                       Incident Listing Panic
+                    </a>
+                  ),
+                },
+              ]}
+            />
+          </ConfigProvider>
+        </Sider>
+      ) : showDiagnosticReport ? (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          collapsedWidth={70}
+          width={200}
+        >
+          <ConfigProvider
+            theme={{
+              components: {
+                Menu: {
+                  colorBgContainer: "#FFFFFF",
+                },
+              },
+            }}
+          >
+            <Menu
+              mode="inline"
+              className={`h-[calc(100vh-60px)] relative z-40`}
+              selectedKeys={selectedKeys}
+              onClick={(info) => {
+                if (info.key === "/dashboard") {
+                  resetDashboardAndTripSystemState(dispatch);
+                }
+              }}
+              items={[
+                {
+                  key: "diagnostic-report",
+                  icon: (
+                    <Image
+                      src={ReportIcon}
+                      alt="diagnostic report"
+                      width={14}
+                      height={14}
+                    />
+                  ),
+                  label: (
+                    <a
+                      href={`https://gtrac.in/newtracking/reports/all_reports_of_vehicle.php?report=Diagnostic&token=${groupId}&userid=${userId}&extra=${extra}&puserid=${parentUser}`}
+                      target="_blank"
+                      referrerPolicy="no-referrer"
+                    >
+                      Diagnostic Report
                     </a>
                   ),
                 },

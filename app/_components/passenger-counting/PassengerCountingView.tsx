@@ -3,7 +3,8 @@
 import { DatePicker, Modal, Skeleton } from "antd";
 import dayjs from "dayjs";
 import moment from "moment";
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getToken } from "@/lib/singapore-mettax";
 import {
   Bar,
   BarChart,
@@ -18,8 +19,6 @@ import { StatCard } from "./StatCard";
 interface ViewProps {
   serviceId: string | null;
 }
-
-type RangeKey = "today" | "yesterday" | "last3Days" | "lastWeek";
 
 type SnapshotEntry = {
   cam_imei_entry: string;
@@ -44,59 +43,32 @@ type PassengerMetrics = {
   records: number;
 };
 
-type TrendPoint = {
-  date: string;
-  total: number;
-};
-
-const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "yesterday", label: "Yesterday" },
-  { key: "last3Days", label: "Last 3 Days" },
-  { key: "lastWeek", label: "Last Week" },
-];
+const LIVE_DASHCAM_IMEI = "670078167679";
+const DASHCAM_CHANNELS = [1, 2, 3, 4];
 
 const formatApiDateTime = (value: moment.Moment) =>
   value.format("YYYY-MM-DD HH:mm:ss");
 
-const getRangeBounds = (rangeKey: RangeKey) => {
-  const todayStart = moment().startOf("day");
-  const todayEnd = moment().endOf("day");
-
-  switch (rangeKey) {
-    case "yesterday": {
-      const day = moment().subtract(1, "day");
-      return {
-        startTime: formatApiDateTime(day.clone().startOf("day")),
-        endTime: formatApiDateTime(day.clone().endOf("day")),
-      };
-    }
-    case "last3Days":
-      return {
-        startTime: formatApiDateTime(
-          moment().subtract(2, "days").startOf("day"),
-        ),
-        endTime: formatApiDateTime(todayEnd),
-      };
-    case "lastWeek":
-      return {
-        startTime: formatApiDateTime(
-          moment().subtract(6, "days").startOf("day"),
-        ),
-        endTime: formatApiDateTime(todayEnd),
-      };
-    case "today":
-    default:
-      return {
-        startTime: formatApiDateTime(todayStart),
-        endTime: formatApiDateTime(todayEnd),
-      };
+const normalizeSnapshotEntries = (payload: unknown): SnapshotEntry[] => {
+  if (Array.isArray(payload)) {
+    return payload as SnapshotEntry[];
   }
+
+  if (payload && typeof payload === "object") {
+    const maybeData = (payload as { data?: unknown }).data;
+    if (Array.isArray(maybeData)) {
+      return maybeData as SnapshotEntry[];
+    }
+  }
+
+  return [];
 };
 
-const getDateKey = (value: string) => moment(value).format("YYYY-MM-DD");
-
 const getLatestEntry = (entries: SnapshotEntry[]) => {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return null;
+  }
+
   return entries.reduce((latest, entry) => {
     const entryTime = entry.device_ts || entry.received_at;
     const latestTime = latest.device_ts || latest.received_at;
@@ -107,7 +79,7 @@ const getLatestEntry = (entries: SnapshotEntry[]) => {
 const calculateMetrics = (
   entries: SnapshotEntry[] | null,
 ): PassengerMetrics & { male: number; female: number } => {
-  const data = entries || [];
+  const data = normalizeSnapshotEntries(entries);
 
   if (data.length === 0) {
     return {
@@ -131,7 +103,7 @@ const calculateMetrics = (
     total: incoming,
     incoming,
     outgoing: data.reduce((sum, entry) => sum + (entry.exit_count || 0), 0),
-    inside: latest.inside_count || 0,
+    inside: latest?.inside_count || 0,
     records: data.length,
     male: data.reduce((sum, entry) => sum + (entry.male_count || 0), 0),
     female: data.reduce((sum, entry) => sum + (entry.female_count || 0), 0),
@@ -161,7 +133,8 @@ const fetchSnapshots = async (
     throw new Error(errorText || "Failed to load snapshot data");
   }
 
-  return (await response.json()) as SnapshotEntry[];
+  const payload = await response.json();
+  return normalizeSnapshotEntries(payload);
 };
 
 const fetchLatestSnapshot = async (signal?: AbortSignal) => {
@@ -216,7 +189,7 @@ const getMatchingMockEntries = (start: moment.Moment, end: moment.Moment) => {
   });
 };
 
-const PassengerCountingView = ({ serviceId }: ViewProps) => {
+const PassengerCountingView = (_props: ViewProps) => {
   const [selectedRange, setSelectedRange] = useState<"today" | "custom">(
     "today",
   );
@@ -230,9 +203,12 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
   const [snapshotData, setSnapshotData] = useState<SnapshotEntry | null>(null);
   const [loadingRange, setLoadingRange] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
+  const [dashcamChannels, setDashcamChannels] = useState<string[]>([]);
+  const [dashcamLoading, setDashcamLoading] = useState(true);
+  const [isDashcamModalOpen, setIsDashcamModalOpen] = useState(false);
+  const [activeDashcamChannels, setActiveDashcamChannels] = useState<number[]>([]);
 
   const [activeCamTab, setActiveCamTab] = useState<"entry" | "exit">("entry");
   const [currentTime, setCurrentTime] = useState<moment.Moment>(moment());
@@ -242,6 +218,33 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
       setCurrentTime(moment());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashcam = async () => {
+      try {
+        setDashcamLoading(true);
+        const token = await getToken();
+        const urls = DASHCAM_CHANNELS.map(
+          (channelId) =>
+            `${process.env.NEXT_PUBLIC_METTAX_API}/h5/#/live/v2?deviceId=${LIVE_DASHCAM_IMEI}&channelId=${channelId}&token=${token}`,
+        );
+        if (isMounted) setDashcamChannels(urls);
+      } catch (error) {
+        console.error("Failed to load Mettax live dashcam:", error);
+        if (isMounted) setDashcamChannels([]);
+      } finally {
+        if (isMounted) setDashcamLoading(false);
+      }
+    };
+
+    loadDashcam();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const selectedBounds = useMemo(() => {
@@ -289,7 +292,6 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
 
     const loadRange = async () => {
       setLoadingRange(true);
-      setError(null);
 
       try {
         if (selectedRange === "today") {
@@ -313,11 +315,7 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
         if (!controller.signal.aborted) {
           setRangeData(null);
           setSnapshotData(null);
-          setError(
-            fetchError instanceof Error
-              ? fetchError.message
-              : "Failed to load passenger count data",
-          );
+          console.error("Failed to load passenger count data", fetchError);
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -716,6 +714,110 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
           )}
         </div>
 
+        <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Live Dashcam</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Device IMEI: {LIVE_DASHCAM_IMEI}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsDashcamModalOpen(true)}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            >
+              Open Channels
+            </button>
+          </div>
+
+          <div className="flex h-[120px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+            {dashcamLoading
+              ? "Loading live channels..."
+              : dashcamChannels.length > 0
+                ? "Click Open Channels to view all 4 live streams"
+                : "Live dashcam channels unavailable for this IMEI."}
+          </div>
+        </div>
+
+        <Modal
+          title="Live Dashcam Channels"
+          open={isDashcamModalOpen}
+          onCancel={() => setIsDashcamModalOpen(false)}
+          footer={null}
+          width={1200}
+          centered
+          styles={{
+            body: { backgroundColor: "#f8fafc", padding: "16px" },
+          }}
+        >
+          {dashcamLoading ? (
+            <div className="flex h-[320px] items-center justify-center">
+              <Skeleton active className="w-full" />
+            </div>
+          ) : dashcamChannels.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {dashcamChannels.map((channelUrl, index) => {
+                const channelNumber = index + 1;
+                const isActive = activeDashcamChannels.includes(channelNumber);
+
+                return (
+                  <div
+                    key={`${LIVE_DASHCAM_IMEI}-channel-${channelNumber}`}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-slate-950 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200">
+                      Channel {channelNumber}
+                    </div>
+
+                    {isActive ? (
+                      <iframe
+                        src={channelUrl}
+                        title={`Mettax Channel ${channelNumber}`}
+                        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                        className="h-[260px] w-full border-0"
+                      />
+                    ) : (
+                      <div className="relative h-[260px] w-full bg-slate-200">
+                        <div className="absolute inset-0 bg-gradient-to-br from-slate-200 via-slate-300 to-slate-400" />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActiveDashcamChannels((prev) =>
+                              prev.includes(channelNumber)
+                                ? prev
+                                : [...prev, channelNumber],
+                            )
+                          }
+                          className="absolute inset-0 flex items-center justify-center bg-black/10 transition hover:bg-black/20"
+                        >
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-md">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-4 w-4"
+                            >
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                            Play Channel {channelNumber}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+              No live dashcam channels available.
+            </div>
+          )}
+        </Modal>
+
         {/* Camera Tabs Section */}
         <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center border-b border-slate-100 pb-4 mb-5">
@@ -794,8 +896,13 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono border-r border-slate-200">
                       {(() => {
-                        const startVal = snapshotData?.received_at || "2026-07-06T05:24:08.000Z";
-                        return moment.utc(startVal).utcOffset("+05:30").format("HH:mm:ss");
+                        const startVal =
+                          snapshotData?.received_at ||
+                          "2026-07-06T05:24:08.000Z";
+                        return moment
+                          .utc(startVal)
+                          .utcOffset("+05:30")
+                          .format("HH:mm:ss");
                       })()}
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono border-r border-slate-200">
@@ -804,9 +911,14 @@ const PassengerCountingView = ({ serviceId }: ViewProps) => {
                     <td className="px-4 py-3 text-slate-700 font-semibold font-mono">
                       {(() => {
                         const startVal =
-                          snapshotData?.received_at || "2026-07-06T05:24:08.000Z";
-                        const startMoment = moment.utc(startVal).utcOffset("+05:30");
-                        const currentIST = currentTime.clone().utcOffset("+05:30");
+                          snapshotData?.received_at ||
+                          "2026-07-06T05:24:08.000Z";
+                        const startMoment = moment
+                          .utc(startVal)
+                          .utcOffset("+05:30");
+                        const currentIST = currentTime
+                          .clone()
+                          .utcOffset("+05:30");
                         const diffMs = currentIST.diff(startMoment);
                         if (diffMs < 0) return "00:00:00";
 

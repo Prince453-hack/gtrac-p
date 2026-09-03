@@ -1549,10 +1549,13 @@ const allAlertOptions = [
 ];
 
 const SIDEBAR_USER_IDS: number[] = [
-  3356, 82815, 87470, 833105, 81707, 87115, 4343, 833783, 833868,
+  3356, 82815, 87470, 833105, 81707, 87115, 4343, 833783, 833868, 833908,
+  834026,
 ];
 
-const VIDEO_TELEMATICS_USER_IDS: number[] = [81707, 4343, 833783, 833868];
+const VIDEO_TELEMATICS_USER_IDS: number[] = [
+  81707, 4343, 833783, 833868, 833908, 834026,
+];
 
 const FUEL_USER_IDS: number[] = [3356, 833193, 833105, 81707, 833783, 4343];
 
@@ -2407,7 +2410,9 @@ export const View = () => {
       Number(userId) === 87115 ||
       Number(userId) === 833783 ||
       Number(userId) === 833868 ||
-      Number(userId) === 4343
+      Number(userId) === 4343 ||
+      Number(userId) === 833908 ||
+      Number(userId) === 834026
     );
   };
 
@@ -3334,7 +3339,9 @@ export const View = () => {
           Number(userId) === 81707 ||
           Number(userId) === 87115 ||
           Number(userId) === 833783 ||
-          Number(userId) === 833868
+          Number(userId) === 833868 ||
+          Number(userId) === 833908 ||
+          Number(userId) === 834026
         ) {
           kmtAlertOptions = kmtAlertOptions.filter(
             (option) =>
@@ -3420,7 +3427,9 @@ export const View = () => {
             Number(userId) === 81707 ||
             Number(userId) === 87115 ||
             Number(userId) === 833783 ||
-            Number(userId) === 833868
+            Number(userId) === 833868 ||
+            Number(userId) === 833908 ||
+            Number(userId) === 834026
           ) {
             finalFilteredOptions = alertOptionFilteredByUser.filter(
               (option) =>

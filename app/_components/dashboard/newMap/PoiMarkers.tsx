@@ -36,6 +36,7 @@ type ModalVehicleRow = {
   vehicleNumber: string;
   mode: string;
   modeTime: string;
+  haltingHours?: string;
   speed: number;
   address: string;
   grNo?: string;
@@ -306,12 +307,19 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
   const allCoordinates: ModalVehicleRow[] = markers.map((vehicle) => {
     // @ts-ignore - addr property exists in runtime but not in type definition
     const address = vehicle.gpsDtl.latLngDtl.addr || "N/A";
+    const cellIdValue =
+      typeof vehicle.gpsDtl.cellId === "number" && vehicle.gpsDtl.cellId > 0
+        ? String(vehicle.gpsDtl.cellId)
+        : "N/A";
+    const haltingHours = cellIdValue;
+
     return {
       lat: vehicle.gpsDtl.latLngDtl.lat,
       lng: vehicle.gpsDtl.latLngDtl.lng,
       vehicleNumber: vehicle.vehReg,
       mode: vehicle.gpsDtl.mode,
       modeTime: vehicle.gpsDtl.modeTime,
+      haltingHours,
       speed: vehicle.gpsDtl.speed,
       address,
     };
@@ -717,6 +725,7 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                       "Container Id",
                       "Mode",
                       "Mode Time",
+                      "Halting Hours",
                       "Location",
                     ]
                   : [
@@ -724,6 +733,7 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                       "Vehicle No",
                       "Mode",
                       "Mode Time",
+                      "Halting Hours",
                       "Location",
                     ];
                 const csvContent = [
@@ -747,6 +757,7 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                       ...tripColumns,
                       `"${v.mode || "N/A"}"`,
                       `"${v.modeTime || "N/A"}"`,
+                      `"${v.haltingHours || "N/A"}"`,
                       `"${v.address.split("_").join(" ") || "N/A"}"`,
                     ].join(",");
                   }),
@@ -890,6 +901,14 @@ const PoiMarkersImperative = ({ bounds }: { bounds: any }) => {
                     title: "Mode Time",
                     dataIndex: "modeTime",
                     key: "modeTime",
+                    width: 120,
+                    ellipsis: true,
+                    render: (text: string) => text || "N/A",
+                  },
+                  {
+                    title: "Halting Hours",
+                    dataIndex: "haltingHours",
+                    key: "haltingHours",
                     width: 120,
                     ellipsis: true,
                     render: (text: string) => text || "N/A",

@@ -305,6 +305,8 @@ export const VehicleOverviewCard = ({
     return vehicleData.gpsDtl.latLngDtl.gpstime || "";
   };
 
+  const latestReceivedTime = getLatestReceivedTime();
+
   const stablePOI = useMemo(() => {
     const hasValidElockPOI =
       vehicleData.gpsDtl.controllernum === "CONTROLLER" &&
@@ -813,7 +815,7 @@ export const VehicleOverviewCard = ({
                             .toLowerCase()} since: `}
                     <span className="font-bold">
                       {shouldShowStoppedSince || !shouldShowNotWorkingHours
-                        ? targetStatusInfo.modeTime
+                        ? latestReceivedTime || targetStatusInfo.modeTime
                         : `${vehicleData.gpsDtl.notworkingHrs} hrs`}
                     </span>
                   </p>
