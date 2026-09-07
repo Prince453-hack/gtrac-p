@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { passengerData } from "./passengerData";
 import { StatCard } from "./StatCard";
 
 interface ViewProps {
@@ -45,6 +46,29 @@ type PassengerMetrics = {
 
 const LIVE_DASHCAM_IMEI = "670078167679";
 const DASHCAM_CHANNELS = [1, 2, 3, 4];
+
+const getStaticPassengerEntries = (start: moment.Moment, end: moment.Moment) =>
+  passengerData.filter((entry) => {
+    const entryDate = moment(entry.date, "DD-MM-YYYY", true);
+    return (
+      entryDate.isSameOrAfter(start, "day") &&
+      entryDate.isSameOrBefore(end, "day")
+    );
+  });
+
+const calculateStaticMetrics = (entries: typeof passengerData) => {
+  return {
+    total: entries.reduce((sum, entry) => sum + entry.totalPassengers, 0),
+    incoming: entries.reduce((sum, entry) => sum + entry.entry, 0),
+    outgoing: entries.reduce((sum, entry) => sum + entry.exit, 0),
+    inside:
+      entries.reduce((sum, entry) => sum + entry.entry, 0) -
+      entries.reduce((sum, entry) => sum + entry.exit, 0),
+    records: entries.length,
+    male: entries.reduce((sum, entry) => sum + entry.male, 0),
+    female: entries.reduce((sum, entry) => sum + entry.female, 0),
+  };
+};
 
 const formatApiDateTime = (value: moment.Moment) =>
   value.format("YYYY-MM-DD HH:mm:ss");
@@ -195,20 +219,23 @@ const PassengerCountingView = (_props: ViewProps) => {
   );
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startPickerMonth, setStartPickerMonth] = useState(() => dayjs());
+  const [endPickerMonth, setEndPickerMonth] = useState(() => dayjs());
   const [queryDates, setQueryDates] = useState<{
     start: Date;
     end: Date;
   } | null>(null);
-  const [rangeData, setRangeData] = useState<SnapshotEntry[] | null>(null);
   const [snapshotData, setSnapshotData] = useState<SnapshotEntry | null>(null);
   const [loadingRange, setLoadingRange] = useState(true);
-  const [loadingTrend, setLoadingTrend] = useState(true);
+  const loadingTrend = false;
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
   const [dashcamChannels, setDashcamChannels] = useState<string[]>([]);
   const [dashcamLoading, setDashcamLoading] = useState(true);
   const [isDashcamModalOpen, setIsDashcamModalOpen] = useState(false);
-  const [activeDashcamChannels, setActiveDashcamChannels] = useState<number[]>([]);
+  const [activeDashcamChannels, setActiveDashcamChannels] = useState<number[]>(
+    [],
+  );
 
   const [activeCamTab, setActiveCamTab] = useState<"entry" | "exit">("entry");
   const [currentTime, setCurrentTime] = useState<moment.Moment>(moment());
@@ -269,6 +296,17 @@ const PassengerCountingView = (_props: ViewProps) => {
     }
   }, [selectedRange, queryDates]);
 
+  const selectedPassengerEntries = useMemo(() => {
+    const start = moment(
+      selectedBounds.startTime,
+      "YYYY-MM-DD HH:mm:ss",
+    ).startOf("day");
+    const end = moment(selectedBounds.endTime, "YYYY-MM-DD HH:mm:ss").endOf(
+      "day",
+    );
+    return getStaticPassengerEntries(start, end);
+  }, [selectedBounds]);
+
   const activeMockEntries = useMemo(() => {
     const start = moment(
       selectedBounds.startTime,
@@ -280,104 +318,83 @@ const PassengerCountingView = (_props: ViewProps) => {
     return getMatchingMockEntries(start, end);
   }, [selectedBounds]);
 
+  const rangeIncludesToday = useMemo(
+    () =>
+      moment(
+        selectedBounds.endTime,
+        "YYYY-MM-DD HH:mm:ss",
+        true,
+      ).isSame(moment(), "day"),
+    [selectedBounds.endTime],
+  );
+
   useEffect(() => {
-    if (activeMockEntries.length > 0) {
-      // Default selected video url to the first available mock entry
-      setSelectedVideoUrl(activeMockEntries[0].videoUrl);
+    if (selectedRange !== "today" && !rangeIncludesToday) {
+      setSnapshotData(null);
       setLoadingRange(false);
       return;
     }
 
     const controller = new AbortController();
+    setLoadingRange(true);
 
-    const loadRange = async () => {
-      setLoadingRange(true);
-
-      try {
-        if (selectedRange === "today") {
-          const snapshotRes = await fetchLatestSnapshot(controller.signal);
-          if (!controller.signal.aborted) {
-            setRangeData(null);
-            setSnapshotData(snapshotRes);
-          }
-        } else {
-          const historyRes = await fetchSnapshots(
-            selectedBounds.startTime,
-            selectedBounds.endTime,
-            controller.signal,
-          );
-          if (!controller.signal.aborted) {
-            setRangeData(historyRes);
-            setSnapshotData(null);
-          }
-        }
-      } catch (fetchError) {
+    fetchLatestSnapshot(controller.signal)
+      .then((snapshot) => {
+        if (!controller.signal.aborted) setSnapshotData(snapshot);
+      })
+      .catch((error) => {
         if (!controller.signal.aborted) {
-          setRangeData(null);
           setSnapshotData(null);
-          console.error("Failed to load passenger count data", fetchError);
+          console.error("Failed to load today's passenger count", error);
         }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoadingRange(false);
-        }
-      }
-    };
-
-    loadRange();
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingRange(false);
+      });
 
     return () => controller.abort();
-  }, [
-    selectedBounds.endTime,
-    selectedBounds.startTime,
-    activeMockEntries,
-    selectedRange,
-  ]);
-
-  useEffect(() => {
-    setLoadingTrend(false);
-  }, [selectedRange, queryDates]);
+  }, [rangeIncludesToday, selectedRange]);
 
   const metrics = useMemo(() => {
-    if (selectedRange === "today" && snapshotData) {
+    if (snapshotData && (selectedRange === "today" || rangeIncludesToday)) {
+      const staticMetrics = calculateStaticMetrics(selectedPassengerEntries);
+      const apiInside = snapshotData.entry_count - snapshotData.exit_count;
+
       return {
-        total: snapshotData.total_count,
-        incoming: snapshotData.entry_count,
-        outgoing: snapshotData.exit_count,
-        inside: snapshotData.inside_count,
-        records: snapshotData.total_count,
-        male: snapshotData.male_count,
-        female: snapshotData.female_count,
+        total: staticMetrics.total + snapshotData.entry_count,
+        incoming: staticMetrics.incoming + snapshotData.entry_count,
+        outgoing: staticMetrics.outgoing + snapshotData.exit_count,
+        inside: staticMetrics.inside + apiInside,
+        records: staticMetrics.records + snapshotData.total_count,
+        male: staticMetrics.male + snapshotData.male_count,
+        female: staticMetrics.female + snapshotData.female_count,
       };
     }
 
-    if (activeMockEntries.length > 0) {
-      const sortedMocks = [...activeMockEntries].sort((a, b) =>
-        moment(a.dateStr).diff(moment(b.dateStr)),
-      );
-      const incoming = sortedMocks.reduce(
-        (sum, m) => sum + m.metrics.incoming,
-        0,
-      );
-      const total = incoming;
-      const outgoing = sortedMocks.reduce(
-        (sum, m) => sum + m.metrics.outgoing,
-        0,
-      );
-      const inside = sortedMocks.reduce((sum, m) => sum + m.metrics.inside, 0);
-      const records = sortedMocks.reduce(
-        (sum, m) => sum + m.metrics.records,
-        0,
-      );
-      return { total, incoming, outgoing, inside, records, male: 0, female: 0 };
-    }
-    const computed = calculateMetrics(rangeData);
-    return {
-      ...computed,
-    };
-  }, [rangeData, activeMockEntries, selectedRange, snapshotData]);
+    return calculateStaticMetrics(selectedPassengerEntries);
+  }, [
+    selectedPassengerEntries,
+    selectedRange,
+    snapshotData,
+    rangeIncludesToday,
+  ]);
 
   const chartData = useMemo(() => {
+    if (snapshotData && (selectedRange === "today" || rangeIncludesToday)) {
+      const staticChartData = selectedPassengerEntries.map((entry) => ({
+        date: moment(entry.date, "DD-MM-YYYY", true).format("MMM D"),
+        total: entry.totalPassengers,
+      }));
+
+      return [
+        ...staticChartData,
+        {
+          date: moment().format("MMM D"),
+          total: snapshotData.entry_count,
+        },
+      ];
+    }
+
     const start = moment(
       selectedBounds.startTime,
       "YYYY-MM-DD HH:mm:ss",
@@ -387,110 +404,16 @@ const PassengerCountingView = (_props: ViewProps) => {
     );
     const daysCount = end.diff(start, "days") + 1;
 
-    if (activeMockEntries.length > 0) {
-      if (daysCount === 1) {
-        const singleMock = activeMockEntries[0];
-        const targetDay = moment(singleMock.dateStr, "YYYY-MM-DD");
-        const days = Array.from({ length: 7 }, (_, index) =>
-          targetDay.clone().subtract(6 - index, "days"),
-        );
-        return days.map((day) => {
-          const dateStr = day.format("YYYY-MM-DD");
-          const matchingMock = activeMockEntries.find(
-            (m) => m.dateStr === dateStr,
-          );
-          return {
-            date: day.format("MMM D"),
-            total: matchingMock ? matchingMock.metrics.total : 0,
-          };
-        });
-      } else if (daysCount <= 31) {
-        const days = Array.from({ length: daysCount }, (_, index) =>
-          start.clone().add(index, "days"),
-        );
-        return days.map((day) => {
-          const dateStr = day.format("YYYY-MM-DD");
-          const matchingMock = activeMockEntries.find(
-            (m) => m.dateStr === dateStr,
-          );
-          return {
-            date: day.format("MMM D"),
-            total: matchingMock ? matchingMock.metrics.total : 0,
-          };
-        });
-      } else {
-        return activeMockEntries.map((m) => ({
-          date: moment(m.dateStr).format("MMM D"),
-          total: m.metrics.total,
-        }));
-      }
-    }
-    if (rangeData && Array.isArray(rangeData) && rangeData.length > 0) {
-      const dailyTotals: { [key: string]: number } = {};
-      rangeData.forEach((entry) => {
-        const dateStr = moment(entry.device_ts || entry.received_at).format(
-          "YYYY-MM-DD",
-        );
-        dailyTotals[dateStr] =
-          (dailyTotals[dateStr] || 0) + (entry.total_count || 0);
-      });
-
-      const anchor =
-        selectedRange === "custom" && queryDates
-          ? moment(queryDates.start)
-          : moment().subtract(6, "days").startOf("day");
-
-      const lastSevenDays = Array.from({ length: 7 }, (_, index) =>
-        anchor.clone().add(index, "days"),
-      );
-      return lastSevenDays.map((day) => {
-        const dateKey = day.format("YYYY-MM-DD");
-        let total = dailyTotals[dateKey] || 0;
-
-        if (
-          selectedRange === "today" &&
-          day.isSame(moment(), "day") &&
-          snapshotData
-        ) {
-          total = snapshotData.total_count;
-        }
-
-        return {
-          date: day.format("MMM D"),
-          total,
-        };
-      });
-    }
-
-    const anchor =
-      selectedRange === "custom" && queryDates
-        ? moment(queryDates.start)
-        : moment().subtract(6, "days").startOf("day");
-    const lastSevenDays = Array.from({ length: 7 }, (_, index) =>
-      anchor.clone().add(index, "days"),
-    );
-    return lastSevenDays.map((day) => {
-      let total = 0;
-
-      if (
-        selectedRange === "today" &&
-        day.isSame(moment(), "day") &&
-        snapshotData
-      ) {
-        total = snapshotData.total_count;
-      }
-
-      return {
-        date: day.format("MMM D"),
-        total,
-      };
-    });
+    return selectedPassengerEntries.map((entry) => ({
+      date: moment(entry.date, "DD-MM-YYYY", true).format("MMM D"),
+      total: entry.totalPassengers,
+    }));
   }, [
-    activeMockEntries,
+    selectedPassengerEntries,
     selectedBounds,
     selectedRange,
-    queryDates,
     snapshotData,
+    rangeIncludesToday,
   ]);
   return (
     <div className="min-h-full p-6 lg:p-8 bg-white overflow-y-auto">
@@ -527,6 +450,8 @@ const PassengerCountingView = (_props: ViewProps) => {
               <DatePicker
                 value={startDate ? dayjs(startDate) : null}
                 onChange={(date) => setStartDate(date ? date.toDate() : null)}
+                pickerValue={startPickerMonth}
+                onPanelChange={(value) => setStartPickerMonth(value)}
                 placeholder="Start Date"
                 format="DD/MM/YYYY"
                 bordered={false}
@@ -553,6 +478,8 @@ const PassengerCountingView = (_props: ViewProps) => {
               <DatePicker
                 value={endDate ? dayjs(endDate) : null}
                 onChange={(date) => setEndDate(date ? date.toDate() : null)}
+                pickerValue={endPickerMonth}
+                onPanelChange={(value) => setEndPickerMonth(value)}
                 placeholder="End Date"
                 format="DD/MM/YYYY"
                 bordered={false}
@@ -586,7 +513,10 @@ const PassengerCountingView = (_props: ViewProps) => {
               onClick={() => {
                 if (startDate && endDate) {
                   setQueryDates({ start: startDate, end: endDate });
-                  setSelectedRange("custom");
+                  const isTodaySelection =
+                    moment(startDate).isSame(moment(), "day") &&
+                    moment(endDate).isSame(moment(), "day");
+                  setSelectedRange(isTodaySelection ? "today" : "custom");
                 }
               }}
               className={`rounded-lg px-6 h-10 text-sm font-semibold transition-all duration-200 w-full sm:w-auto flex items-center justify-center ${
@@ -688,8 +618,8 @@ const PassengerCountingView = (_props: ViewProps) => {
               <StatCard
                 title="Inside"
                 value={metrics.inside.toLocaleString()}
-                maleValue={metrics.male}
-                femaleValue={metrics.female}
+                maleValue={0}
+                femaleValue={0}
                 subtitle="Latest inside value"
                 iconBg="bg-slate-50"
                 iconColor="text-slate-500"
